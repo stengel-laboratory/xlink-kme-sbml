@@ -1,0 +1,2 @@
+include versioneer.py
+include xlink-kme-sbml/_version.py
