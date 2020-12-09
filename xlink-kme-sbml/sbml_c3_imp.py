@@ -3,6 +3,8 @@ import IMP
 import IMP.core
 import IMP.atom
 import numpy as np
+
+import sbml_constants
 import sbml_xl
 
 # TODO: Read fasta with PMI, build coarse grained model
@@ -103,8 +105,8 @@ class AllXLReactionsIMP(sbml_xl.AllXLReactions):
         offset = 22 # pdb to fasta offset
         for ps in self.params["ps_lys"]:
             user_data_dict = get_imp_ps_user_data_dict(ps)
-            s = self.min_model.sbml_model.addSpecies(user_data_dict[sbml_xl.d_id], 1)
-            s.setSpeciesType(user_data_dict[sbml_xl.d_type])
+            s = self.min_model.sbml_model.addSpecies(user_data_dict[sbml_constants.D_ID], 1, )
+            s.setSpeciesType(user_data_dict[sbml_constants.D_TYPE])
             s.UserData = user_data_dict
             lys_list.append(s)
         return lys_list
@@ -114,7 +116,7 @@ class AllXLReactionsIMP(sbml_xl.AllXLReactions):
         for mono_trans in self.react_mono_trans.products:
             user_data_dict = sbml_xl.get_user_data_dict(s_type='klys', s_precursor_list=[mono_trans])
             p_klys = self.min_model.sbml_model.addParameter(
-                user_data_dict[sbml_xl.d_id], get_random_reactivity()
+                user_data_dict[sbml_constants.D_ID], get_random_reactivity()
             ) # type: tesbml.libsbml.Parameter
             p_klys.UserData = user_data_dict 
             mono_trans_to_param_dict[mono_trans.getId()] = p_klys
@@ -123,22 +125,22 @@ class AllXLReactionsIMP(sbml_xl.AllXLReactions):
     def add_xl_trans_params(self):
         unique_id_kon_dict = {}
         for lys in self.species_lys:
-            location_id_lys = lys.UserData[sbml_xl.d_location_id]
+            location_id_lys = lys.UserData[sbml_constants.D_LOCATION_ID]
             for mono in self.react_mono.products:
-                location_id_mono = mono.UserData[sbml_xl.d_location_id]
+                location_id_mono = mono.UserData[sbml_constants.D_LOCATION_ID]
                 if location_id_lys == location_id_mono:
                     continue
                 user_data_dict = sbml_xl.get_user_data_dict(s_type="kon_xl", s_precursor_list=[lys, mono])
-                location_id = user_data_dict[sbml_xl.d_location_id]
+                location_id = user_data_dict[sbml_constants.D_LOCATION_ID]
                 if location_id in unique_id_kon_dict:
                     continue
                 ps_lys = lys.UserData[d_imp_ps]
                 # super hacky -> make it nice
-                ps_mono = mono.UserData[sbml_xl.d_precursor_list][0].UserData[sbml_xl.d_precursor_list][0].UserData[d_imp_ps]
+                ps_mono = mono.UserData[sbml_constants.D_PRECURSOR_LIST][0].UserData[sbml_constants.D_PRECURSOR_LIST][0].UserData[d_imp_ps]
                 dist = IMP.core.get_distance(IMP.core.XYZ(ps_lys), IMP.core.XYZ(ps_mono))
                 if dist > 5 and dist < 35:
                     p_kon_xl = self.min_model.sbml_model.addParameter(
-                        user_data_dict[sbml_xl.d_id],
+                        user_data_dict[sbml_constants.D_ID],
                         get_kon(dist),
                         units="litre_per_mole_per_second",
                     )
