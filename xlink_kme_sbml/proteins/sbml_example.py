@@ -72,7 +72,7 @@ min_model = sbml_xl.MinimalModel(c_xl=10, kh=1e-5, koff=1e-1, kon=1e-3)
 all_reactions = AllXLReactionsExample(min_model, params={"n_lys": 10})
 # %%
 with open(
-    "/home/kai/Coding/xlink-kme-sbml/output/model_example_mono_only.xml", "w"
+        "//output/model_example_mono_only.xml", "w"
 ) as f:
     f.write(min_model.sbml_model.toSBML())
 
@@ -80,7 +80,7 @@ with open(
 rr = te.loadSBMLModel(min_model.sbml_model.toSBML())
 
 with open(
-    "/home/kai/Coding/xlink-kme-sbml/output/model_example_mono_only_antimony.txt", "w"
+        "//output/model_example_mono_only_antimony.txt", "w"
 ) as f:
     f.write(rr.getAntimony())
 #
@@ -98,7 +98,7 @@ with open(
 #
 # # %%
 with open(
-    "/home/kai/Coding/xlink-kme-sbml/output/model_example_antimony.txt", "w"
+        "//output/model_example_antimony.txt", "w"
 ) as f:
     f.write(rr.getAntimony())
 

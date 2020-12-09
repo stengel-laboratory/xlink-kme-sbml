@@ -42,8 +42,8 @@ def get_config():
     cfg.VCS = "git"
     cfg.style = "pep440"
     cfg.tag_prefix = ""
-    cfg.parentdir_prefix = "xlink-kme-sbml-"
-    cfg.versionfile_source = "xlink-kme-sbml/_version.py"
+    cfg.parentdir_prefix = "xlink_kme_sbml-"
+    cfg.versionfile_source = "xlink_kme_sbml/_version.py"
     cfg.verbose = False
     return cfg
 

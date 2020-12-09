@@ -2,7 +2,7 @@ import versioneer
 import setuptools
 
 
-setuptools.setup(name='xlink-kme-sbml',
+setuptools.setup(name='xlink_kme_sbml',
       description='Kinetic Simulation Framework for Crosslinks',
       author='Kai Kammer',
       author_email='kai-michael.kammer@uni-konstanz.de',
