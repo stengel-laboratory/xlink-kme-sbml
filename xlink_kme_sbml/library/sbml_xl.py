@@ -1,7 +1,7 @@
-import simplesbml as sbml
+import simplesbml.simplesbml as sbml
 import tesbml
 import tesbml.libsbml
-import sbml_constants as const
+import xlink_kme_sbml.library.sbml_constants as const
 from typing import List, Tuple, Dict
 
 
@@ -70,7 +70,7 @@ class XLReaction(object):
             reactants: List[tesbml.libsbml.Species],
             param_forward,
             reaction_string: str,
-            sbml_model: sbml.sbmlModel,
+            sbml_model: sbml.SbmlModel,
             reactants_loc_id_to_products_dict=None,
     ):
         super().__init__()
@@ -150,7 +150,7 @@ class XLReactionMonoTrans(XLReaction):
             reactants: List[tesbml.libsbml.Species],
             param_forward: tesbml.libsbml.Parameter,
             reaction_string: str,
-            sbml_model: sbml.sbmlModel,
+            sbml_model: sbml.SbmlModel,
             crosslinker: tesbml.libsbml.Species,
             param_backward: tesbml.libsbml.Parameter,
     ):
@@ -189,7 +189,7 @@ class XLReactionMono(XLReaction):
             reactants: List[tesbml.libsbml.Species],
             param_forward: Dict[str, tesbml.libsbml.Parameter],
             reaction_string: str,
-            sbml_model: sbml.sbmlModel,
+            sbml_model: sbml.SbmlModel,
             products=None,
     ):
         print("INFO: Creating Mono Reactions")
@@ -222,7 +222,7 @@ class XLReactionMonoEff(XLReaction):
             reactants: List[tesbml.libsbml.Species],
             param_forward: Dict[str, tesbml.libsbml.Parameter],
             reaction_string: str,
-            sbml_model: sbml.sbmlModel,
+            sbml_model: sbml.SbmlModel,
             crosslinker: tesbml.libsbml.Species,
             param_kon: tesbml.libsbml.Parameter,
             param_koff: tesbml.libsbml.Parameter,
@@ -263,7 +263,7 @@ class XLReactionMonoHydrolized(XLReaction):
             reactants: List[tesbml.libsbml.Species],
             param_forward: tesbml.libsbml.Parameter,
             reaction_string: str,
-            sbml_model: sbml.sbmlModel,
+            sbml_model: sbml.SbmlModel,
     ):
         print("INFO: Creating Mono Hydrolized Reactions")
         super().__init__(reactants, param_forward, reaction_string, sbml_model)
@@ -293,7 +293,7 @@ class XLReactionXLTrans(XLReaction):
             reactants: List[tesbml.libsbml.Species],
             param_forward: Dict[str, tesbml.libsbml.Parameter],
             reaction_string: str,
-            sbml_model: sbml.sbmlModel,
+            sbml_model: sbml.SbmlModel,
             param_backward: tesbml.libsbml.Parameter,
             reactants_2: List[tesbml.libsbml.Species],
     ):
@@ -364,7 +364,7 @@ class XLReactionXL(XLReaction):
             reactants: List[tesbml.libsbml.Species],
             param_forward: List[tesbml.libsbml.Parameter],
             reaction_string: str,
-            sbml_model: sbml.sbmlModel,
+            sbml_model: sbml.SbmlModel,
     ):
         print("INFO: Creating XL Reactions")
         self.unique_id_prod_dict = {}  # type: Dict[str, tesbml.libsbml.Parameter]
@@ -417,7 +417,7 @@ class XLReactionXLEff(XLReactionXL):
             reactants: List[tesbml.libsbml.Species],
             param_forward: Dict[str, tesbml.libsbml.Parameter], # kon_xl dict
             reaction_string: str,
-            sbml_model: sbml.sbmlModel,
+            sbml_model: sbml.SbmlModel,
             param_klys: List[tesbml.libsbml.Parameter], # list of klys params
             param_koff: tesbml.libsbml.Parameter,
             reactants_2: List[tesbml.libsbml.Species],
@@ -508,10 +508,26 @@ class MinimalModel(object):
     - the kinetic constants kon and koff
     - the unit for kon in the form of L/(mole*sec)
     """
-    def __init__(self, c_xl=1, kh=1e-6, kon=10e-4, koff=10e-1):
-        self.sbml_model = sbml.sbmlModel()
+    def __init__(
+            self,
+            kinetic_params: Dict[str, float] = None,# params dict
+            c_linker: float = 1):
+        self.sbml_model = sbml.SbmlModel()
+        self.c_linker = c_linker
+        if kinetic_params is None:
+            kinetic_params = self._get_default_params()
+        self.kinetic_params = kinetic_params
+        self.kh = kinetic_params[const.S_K_HYDROLYSIS]
+        self._add_linker()
+        self._create_second_order_unit_def()
+        self._add_params()
         # self.sbml_model.getCompartment('c1').setUnits('dimensionless')
-        self.xl_xx = self.sbml_model.addSpecies(const.S_CROSSLINKER, c_xl, )
+
+    def _get_default_params(self):
+        return {const.S_K_HYDROLYSIS: 1e-6, const.S_K_ON: 10e-4, const.S_K_OFF: 10e-1}
+
+    def _add_linker(self):
+        self.xl_xx = self.sbml_model.addSpecies(const.S_CROSSLINKER, self.c_linker, )
         # self.xl_xx.setSpeciesType(S_CROSSLINKER)
 
         self.xl_xh = self.sbml_model.addSpecies(const.S_CROSSLINKER_MONO_HYDROLIZED, 0, )
@@ -520,7 +536,7 @@ class MinimalModel(object):
         self.xl_hh = self.sbml_model.addSpecies(const.S_CROSSLINKER_BI_HYDROLIZED, 0, )
         # self.xl_hh.setSpeciesType("XL_BI_HYDRO")
 
-        self.p_kh = self.sbml_model.addParameter(const.S_K_HYDROLYSIS, kh)
+        self.p_kh = self.sbml_model.addParameter(const.S_K_HYDROLYSIS, self.kinetic_params[const.S_K_HYDROLYSIS])
 
         self.sbml_model.addReaction(
             reactants=[self.xl_xx.getId()],
@@ -533,6 +549,7 @@ class MinimalModel(object):
             expression=f"{self.p_kh.getId()}*{self.xl_xh.getId()}",
         )  # type: tesbml.libsbml.Reaction
 
+    def _create_second_order_unit_def(self):
         # create custom unit: litre per mole per second: L/(mole*sec)
         # needed for 2nd order kinetics
         ud = self.sbml_model.getModel().createUnitDefinition()
@@ -552,10 +569,12 @@ class MinimalModel(object):
         u_s.setExponent(-1)
         u_s.setScale(0)
         u_s.setMultiplier(1)
+
+    def _add_params(self):
         self.p_kon = self.sbml_model.addParameter(
-            const.S_K_ON, kon, units=const.S_UNIT_LITRE_PER_MOLE_PER_SECOND
+            const.S_K_ON, self.kinetic_params[const.S_K_ON], units=const.S_UNIT_LITRE_PER_MOLE_PER_SECOND
         )  # type: tesbml.libsbml.Parameter
-        self.p_koff = self.sbml_model.addParameter(const.S_K_OFF, koff)
+        self.p_koff = self.sbml_model.addParameter(const.S_K_OFF, self.kinetic_params[const.S_K_OFF])
 
     def add_compartments(self, n_comp):
         def _set_comp_id(obj, comp_name):
@@ -611,6 +630,26 @@ class MinimalModel(object):
         for r_new in new_reactions:
             self.sbml_model.model.addReaction(r_new)
 
+
+class MinimalModelMonolinker(MinimalModel):
+    def __init__(
+            self,
+            kinetic_params: Dict[str, float] = None,# params dict
+            c_linker: float = 1):
+        super().__init__(kinetic_params, c_linker)
+
+    def _add_linker(self):
+        self.xl_xx = self.sbml_model.addSpecies(const.S_MONOLINKER, self.c_linker, )
+
+        self.xl_xh = self.sbml_model.addSpecies(const.S_MONOLNKER_HYDROLIZED, 0, )
+
+        self.p_kh = self.sbml_model.addParameter(const.S_K_HYDROLYSIS, self.kinetic_params[const.S_K_HYDROLYSIS])
+
+        self.sbml_model.addReaction(
+            reactants=[self.xl_xx.getId()],
+            products=[self.xl_xh.getId()],
+            expression=f"{self.p_kh.getId()}*{self.xl_xx.getId()}",
+        )
 
 class AllXLReactions(object):
     """
@@ -733,7 +772,7 @@ class AllXLReactionsNoDiff(AllXLReactions):
     - add_lys_params(): define the reactivity of each lysine
     - add_xl_trans_params(): define the reactivity of each crosslink
     This allows the above parameters to be supplied externally.
-    It is also possible to overwrite the create_* methods with a pass state to avoid the formation of a species.
+    It is also possible to overwrite the create_* methods with a pass statement to avoid the formation of a species.
     I.E.: def create_xl_trans(self): pass means to no crosslinks will be formed
     """
     def __init__(self, min_model: MinimalModel, params: Dict):
@@ -793,3 +832,40 @@ class AllXLReactionsNoDiff(AllXLReactions):
             reactants_2=self.react_mono.products,
         )
 
+
+class AllMonoReactionsNoDiff(AllXLReactionsNoDiff):
+    """
+    Class for creating monolinks only without explicit diffusion and only a combined effective reaction rate keff
+    This class needs to be overwritten to define the following functions:
+    - add_lys(): define number and position of lysines
+    - add_lys_params(): define the reactivity of each lysine
+    This allows the above parameters to be supplied externally.
+    It is also possible to overwrite the create_* methods with a pass statement to avoid the formation of a species.
+    """
+    def __init__(self, min_model: MinimalModel, params: Dict):
+        self.min_model = min_model
+        self.params = params
+        self.species_lys = self.add_lys()
+        self.lys_id_to_param_dict = self.add_lys_params()
+        self.react_mono = self.create_mono()
+        self.mono_hydro_trans_prod_dict = {}
+
+    def create_mono(self):
+        return XLReactionMonoEff(
+            reactants=self.species_lys,
+            param_forward=self.lys_id_to_param_dict,
+            reaction_string=const.S_REACT_MONO_HYDRO,
+            sbml_model=self.min_model.sbml_model,
+            crosslinker=self.min_model.xl_xx,
+            param_kon=self.min_model.p_kon,
+            param_koff=self.min_model.p_koff,
+        )
+
+    def create_mono_hydro(self):
+        pass
+
+    def create_mono_hydro_alt(self):
+        pass
+
+    def create_xl(self):
+        pass

@@ -179,7 +179,7 @@ asa_dict_c3 = get_asa_dict(pos_lys_c3, exp='c3')
 asa_dict_c3b = get_asa_dict(pos_lys_c3b, exp='c3b')
 
 # %%
-min_model_c3 = sbml_xl.MinimalModel(c_xl=111, kh=1e-5, koff=1e-1, kon=1e-3)
+min_model_c3 = sbml_xl.MinimalModel(kinetic_params={'kh': 1e-5, 'koff': 1e-1, 'kon': 1e-3}, c_linker=111)
 # %%
 params_c3 = {
     const.D_POSITION_LYSINE: pos_lys_c3,
@@ -193,7 +193,7 @@ with open("../output/model_c3_asa_mono_only_simple_comp.xml", "w") as f:
     f.write(min_model_c3.sbml_model.toSBML())
 
 # %%
-min_model_c3b = sbml_xl.MinimalModel(c_xl=111, kh=1e-5, koff=1e-1, kon=1e-3)
+min_model_c3b = sbml_xl.MinimalModel(kinetic_params={'kh': 1e-5, 'koff': 1e-1, 'kon': 1e-3}, c_linker=111)
 # %%
 params_c3b = {
     const.D_POSITION_LYSINE: pos_lys_c3b,

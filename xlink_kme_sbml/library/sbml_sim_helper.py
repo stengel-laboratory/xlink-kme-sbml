@@ -5,7 +5,7 @@ from __future__ import print_function, absolute_import
 
 import pandas as pd
 import tellurium as te
-import sbml_constants as const
+import xlink_kme_sbml.library.sbml_constants as const
 import numpy as np
 from timeit import default_timer as timer
 

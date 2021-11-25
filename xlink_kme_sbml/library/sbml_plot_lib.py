@@ -2,8 +2,8 @@ import pandas as pd
 import altair as alt
 import numpy as np
 #import seaborn as sns
-import sbml_constants as const
-import sbml_sim_helper as helper
+import xlink_kme_sbml.library.sbml_constants as const
+import xlink_kme_sbml.library.sbml_sim_helper as helper
 import link_library.plot_library as plib
 alt.data_transformers.disable_max_rows()
 

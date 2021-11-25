@@ -30,11 +30,14 @@ S_UNIT_LITRE_PER_MOLE_PER_SECOND = "litre_per_mole_per_second"
 S_CROSSLINKER_BI_HYDROLIZED = "CrosslinkerBiHydrolized"
 S_CROSSLINKER_MONO_HYDROLIZED = "CrosslinkerMonoHydrolized"
 S_CROSSLINKER = "Crosslinker"
+S_MONOLNKER_HYDROLIZED = "MonolinkerHydrolized"
+S_MONOLINKER = "Monolinker"
 S_LYS = "LYS"
 
 # MISC
 S_NONE = "None"
 S_EXP = 'exp'
+S_PROT = 'protein'
 
 # MODEL STRINGS
 D_NAME = "name"
@@ -47,6 +50,10 @@ D_PRECURSOR_LIST = "precursor_list"
 D_LOCATION_LIST = "location_list"
 D_POSITION_LYSINE = "pos_lys"
 D_CONCENTRATION = 'conc'
+D_MIN_DIST = 'minimum_xl_dist'
+D_MAX_DIST = 'maximum_xl_dist'
+D_REACTIVITY_DICT_MONO = 'reactivity_dict_mono'
+D_REACTIVITY_DICT_XL = 'reactivity_dict_xl'
 
 # PLOTS
 S_EXP_NAME = 'UniProtID'

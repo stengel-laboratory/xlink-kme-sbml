@@ -66,13 +66,47 @@ class AllXLReactionsExample(sbml_xl.AllXLReactionsNoDiff):
         return {}
 
 
+class MonoReactionsNoDiffExample(sbml_xl.AllMonoReactionsNoDiff):
+    def add_lys(self):
+        lys_list = []
+        cnt = 0
+        amount = 1
+        for i in range(self.params["n_lys"]):
+            pos = i + 1
+            cnt += 1
+            # prot = f"A{i + 1}"
+            user_data_dict = sbml_xl.get_user_data_dict(s_type=const.S_LYS, s_pos=pos)#, s_prot=prot)
+            s = self.min_model.sbml_model.addSpecies(user_data_dict[const.D_ID], amount, )
+            s.setSpeciesType(const.S_LYS)
+            s.UserData = user_data_dict
+            lys_list.append(s)
+            # if cnt == 1:
+            #     amount *= 10
+            #     cnt = 0
+        return lys_list
+
+    def add_lys_params(self, params=None):
+        lys_to_params_dict = {}
+        for lys in self.species_lys:
+            user_data_dict = sbml_xl.get_user_data_dict(s_type=const.S_K_LYS, s_precursor_list=[lys])
+            p_klys = self.min_model.sbml_model.addParameter(
+                user_data_dict[const.D_ID], np.random.exponential(scale=1.0)
+            ) # type: tesbml.libsbml.Parameter
+            p_klys.UserData = user_data_dict
+            lys_to_params_dict[user_data_dict[const.D_LOCATION_ID]] = p_klys
+        return lys_to_params_dict
+
 # %%
-min_model = sbml_xl.MinimalModel(c_xl=10, kh=1e-5, koff=1e-1, kon=1e-3)
+min_model = sbml_xl.MinimalModel(kinetic_params={'kh': 1e-5, 'koff': 1e-1, 'kon': 1e-3}, c_linker=15)
+#min_model = sbml_xl.MinimalModelMonolinker(kinetic_params={'kh': 1e-5, 'koff': 1e-1, 'kon': 1e-3}, c_linker=25)
 # %%
-all_reactions = AllXLReactionsExample(min_model, params={"n_lys": 10})
+all_reactions = MonoReactionsNoDiffExample(min_model, params={"n_lys": 100})
+#all_reactions = MonoReactionsNoDiffExample(min_model, params={"n_lys": 25})
+
+# min_model.add_compartments(2)
 # %%
 with open(
-        "//output/model_example_mono_only.xml", "w"
+        "../../output/model_example_mono_only_simple_100lys.xml", "w"
 ) as f:
     f.write(min_model.sbml_model.toSBML())
 
@@ -80,7 +114,7 @@ with open(
 rr = te.loadSBMLModel(min_model.sbml_model.toSBML())
 
 with open(
-        "//output/model_example_mono_only_antimony.txt", "w"
+        "../../output/model_example_mono_only_simple_100lys_antimony.txt", "w"
 ) as f:
     f.write(rr.getAntimony())
 #
@@ -97,9 +131,5 @@ with open(
 # df_res.tail()
 #
 # # %%
-with open(
-        "//output/model_example_antimony.txt", "w"
-) as f:
-    f.write(rr.getAntimony())
 
 # %%
