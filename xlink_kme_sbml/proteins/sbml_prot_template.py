@@ -7,7 +7,7 @@ import pandas as pd
 import argparse
 
 from prot_tools import prot_lib
-from library import sbml_constants as const, sbml_xl
+from xlink_kme_sbml.library import sbml_constants as const, sbml_xl
 from Bio import SeqIO
 
 desc = """Kai Kammer - 2021-03. 

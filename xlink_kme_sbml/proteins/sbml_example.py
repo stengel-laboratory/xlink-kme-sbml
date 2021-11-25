@@ -1,5 +1,5 @@
 # %%
-from library import sbml_constants as const, sbml_xl
+from xlink_kme_sbml.library import sbml_constants as const, sbml_xl
 import tellurium as te
 import numpy as np
 

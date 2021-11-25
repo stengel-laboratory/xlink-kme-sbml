@@ -9,7 +9,7 @@ import sequence_tools
 import numpy as np
 import pandas as pd
 
-from library import sbml_constants as const, sbml_xl
+from xlink_kme_sbml.library import sbml_constants as const, sbml_xl
 from Bio import SeqIO
 
 # %%
