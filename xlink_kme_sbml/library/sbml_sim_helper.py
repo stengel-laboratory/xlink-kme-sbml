@@ -14,6 +14,8 @@ from timeit import default_timer as timer
 import csv
 from scipy.optimize import differential_evolution
 import random
+
+
 # from multiprocessing.pool import Pool
 
 
@@ -22,6 +24,7 @@ def load_model(exp, exp_type):
     print(f"Loading {exp}_{exp_type} model")
     rr = te.loadSBMLModel(f"../output/model_{exp}_{exp_type}.xml")
     return rr
+
 
 def load_model_path(path):
     print(f"Loading model at {path}")
@@ -105,18 +108,22 @@ def load_and_simulate(exp, exp_type):
 # return result_list_sim
 
 
-def _explore_variable_runner(rr, variable, value, exp_name, mapper_dict, min_simulation_time):
+def _explore_variable_runner(rr, variable, value, exp_name, mapper_dict, min_simulation_time, custom_vars=None):
     rr.resetToOrigin()
+    if custom_vars:
+        for var in custom_vars.keys():
+            setattr(rr, var, custom_vars[var])
     setattr(rr, variable, value)
-    crosslinker_start = rr.Crosslinker
+    # crosslinker_start = rr.Crosslinker
     start = timer()
     results = rr.simulate(0, min_simulation_time)
     end = timer()
     minimal_convergence = max(abs(rr.dv()))
-    print(f"Simulation for {variable}={value} took {int(end - start)} seconds with a convergence of {minimal_convergence}.")
-    print(f"XL-Non-Hydro: {rr.Crosslinker:.2e} ({rr.Crosslinker / crosslinker_start:.2e}); "
-          f"XL-Mono-Hydro: {rr.CrosslinkerMonoHydrolized:.2e} ({rr.CrosslinkerMonoHydrolized / crosslinker_start:.2e}); "
-          f"XL-Bi-Hydro: {rr.CrosslinkerBiHydrolized:.2e} ({rr.CrosslinkerBiHydrolized / crosslinker_start:.2e})")
+    print(
+        f"Simulation for {variable}={value} took {int(end - start)} seconds with a convergence of {minimal_convergence}.")
+    # print(f"XL-Non-Hydro: {rr.Crosslinker:.2e} ({rr.Crosslinker / crosslinker_start:.2e}); "
+    #       f"XL-Mono-Hydro: {rr.CrosslinkerMonoHydrolized:.2e} ({rr.CrosslinkerMonoHydrolized / crosslinker_start:.2e}); "
+    #       f"XL-Bi-Hydro: {rr.CrosslinkerBiHydrolized:.2e} ({rr.CrosslinkerBiHydrolized / crosslinker_start:.2e})")
     # artificial convergence threshold
     if minimal_convergence > 1e-15:
         print("WARNING: Simulation might not have converged!")
@@ -129,11 +136,13 @@ def _explore_variable_runner(rr, variable, value, exp_name, mapper_dict, min_sim
     return df_res
 
 
-def explore_variable(rr, variable, var_range, exp_name='exp', mapper_dict=None, min_simulation_time=5000000):
+def explore_variable(rr, variable, var_range, exp_name='exp', mapper_dict=None, custom_vars=None,
+                     min_simulation_time=5000000):
     df_list = []
     for value in var_range:
         df_res = _explore_variable_runner(rr=rr, variable=variable, value=value, exp_name=exp_name,
-                                          mapper_dict=mapper_dict, min_simulation_time=min_simulation_time)
+                                          mapper_dict=mapper_dict, min_simulation_time=min_simulation_time,
+                                          custom_vars=custom_vars)
         df_list.append(df_res)
     df_final = pd.concat(df_list)
     # df_melt = pd.melt(df_final.drop(columns=['time']), id_vars=variable)
@@ -217,6 +226,7 @@ def add_reactions_constants(df, rr):
         const.S_UID_SHORT).reset_index()
     return pd.merge(df, df_const, on=const.S_UID_SHORT)
 
+
 def add_nxl(df):
     df[['prot1', 'pos1', 'prot2', 'pos2']] = df[const.S_UID_SHORT].str.split('_', expand=True)
     df_nxl1 = (df.groupby(['pos1'])[const.S_UID_SHORT].nunique() - 1).reset_index(name=const.S_NXL1)
@@ -226,8 +236,10 @@ def add_nxl(df):
     df[const.S_NXL_SUM] = df[[const.S_NXL1, const.S_NXL2]].sum(axis=1)
     return df
 
+
 def add_max_connected_rate_constant(df):
-    df_max_klys_p1 = df[df[const.S_LINK_TYPE] == const.S_REACT_MONO_HYDRO].groupby(['pos1'])[const.S_K_GENERIC].max().reset_index(
+    df_max_klys_p1 = df[df[const.S_LINK_TYPE] == const.S_REACT_MONO_HYDRO].groupby(['pos1'])[
+        const.S_K_GENERIC].max().reset_index(
         name=const.S_K_MAX_K_LYS_P1)
     df_max_klys_p2 = df_max_klys_p1.rename(
         columns={const.S_K_MAX_K_LYS_P1: const.S_K_MAX_K_LYS_P2, 'pos1': 'pos2'})
@@ -243,16 +255,19 @@ def add_max_connected_rate_constant(df):
     df = pd.merge(df, df_max_kon_xl_p1, on='pos1', how='outer')
     df = pd.merge(df, df_max_kon_xl_p2, on='pos2', how='outer')
     df[const.S_K_MAX_K_ON_XL] = df[[const.S_K_MAX_K_ON_XL_P1, const.S_K_MAX_K_ON_XL_P2]].max(axis=1)
-    df = df.drop(columns=[const.S_K_MAX_K_ON_XL_P1, const.S_K_MAX_K_ON_XL_P2, const.S_K_MAX_K_ON_XL_P1, const.S_K_MAX_K_ON_XL_P2])
+    df = df.drop(columns=[const.S_K_MAX_K_ON_XL_P1, const.S_K_MAX_K_ON_XL_P2, const.S_K_MAX_K_ON_XL_P1,
+                          const.S_K_MAX_K_ON_XL_P2])
     df[const.S_K_RATE_GT_K_LYS_MAX] = df[const.S_K_GENERIC] > df[const.S_K_MAX_K_LYS]
     df[const.S_K_RATE_GT_K_ON_XL_MAX] = df[const.S_K_GENERIC] > df[const.S_K_MAX_K_ON_XL]
     return df
+
 
 def get_explored_var_name(df):
     for col in df.columns:
         if col in const.var_explore_list:
             return col
     return None
+
 
 # if __name__ == '__main__':
 #     load_and_simulate_async('c3', 'asa', 'kh', [1e-5, 1e-4, 1e-3, 1e-2])
@@ -262,19 +277,17 @@ def get_explored_var_name(df):
 # df_final_frame = write_results(exp, exp_type, results)
 
 
-
 class ParameterEstimation(object):
     """Parameter Estimation"""
-    def __init__(self, stochastic_simulation_model,bounds, data=None):
-        if(data is not None):
+
+    def __init__(self, stochastic_simulation_model, bounds, data=None):
+        if (data is not None):
             self.data = data
 
         self.model = stochastic_simulation_model
         self.bounds = bounds
-        
 
-
-    def setDataFromFile(self,FILENAME, delimiter=",", headers=True):
+    def setDataFromFile(self, FILENAME, delimiter=",", headers=True):
         """Allows the user to set the data from a File
         This data is to be compared with the simulated data in the process of parameter estimation
         
@@ -292,21 +305,20 @@ class ParameterEstimation(object):
         
         
         """
-        with open(FILENAME,'r') as dest_f:
+        with open(FILENAME, 'r') as dest_f:
             data_iter = csv.reader(dest_f,
-                                   delimiter = ",",
-                                   quotechar = '"')
+                                   delimiter=",",
+                                   quotechar='"')
             self.data = [data for data in data_iter]
-        if(headers):
+        if (headers):
             self.data = self.data[1:]
 
-        self.data = np.asarray(self.data, dtype = float)
-        
+        self.data = np.asarray(self.data, dtype=float)
+
     def setCustomAttr(self, attr_dict):
         self.attr_dict = attr_dict
-        
 
-    def run(self,func=None, params=None):
+    def run(self, func=None, params=None):
         """Allows the user to set the data from a File
         This data is to be compared with the simulated data in the process of parameter estimation
         
@@ -326,18 +338,18 @@ class ParameterEstimation(object):
         self._parameter_names = list(self.bounds.keys())
         self._parameter_bounds = list(self.bounds.values())
         self._model_roadrunner = te.loada(self.model.model)
-        x_data = self.data[:,0]
+        x_data = self.data[:, 0]
 
-        x_data = self.data[:,0]
-        y_data = self.data[:,1:]
-        arguments = (x_data,y_data)
+        x_data = self.data[:, 0]
+        y_data = self.data[:, 1:]
+        arguments = (x_data, y_data)
 
         if func is None:
             result = differential_evolution(self._SSE, self._parameter_bounds, args=arguments, **params)
-            return(result.x)
+            return (result.x)
         else:
-            result = func(self._SSE,self._parameter_bounds,args=arguments)
-            return(result.x)
+            result = func(self._SSE, self._parameter_bounds, args=arguments)
+            return (result.x)
 
     def _set_theta_values(self, theta):
         """ Sets the Theta Value in the range of bounds provided to the Function.
@@ -353,12 +365,11 @@ class ParameterEstimation(object):
         
         
         """
-        for theta_i,each_theta in enumerate(self._parameter_names):
-            #print(f"Set theta: {each_theta}: {theta[theta_i]}")
+        for theta_i, each_theta in enumerate(self._parameter_names):
+            # print(f"Set theta: {each_theta}: {theta[theta_i]}")
             setattr(self._model_roadrunner, each_theta, theta[theta_i])
 
-
-    def _SSE(self,parameters, *data):
+    def _SSE(self, parameters, *data):
         """ Runs a simuation of SumOfSquares that get parameters and data and compute the metric.
             Not intended to be called by user.
             
@@ -382,7 +393,7 @@ class ParameterEstimation(object):
 
         random.seed()
         # it is now safe to use random.randint
-        #self._model.setSeed(random.randint(1000, 99999))
+        # self._model.setSeed(random.randint(1000, 99999))
 
         self._model_roadrunner.integrator.variable_step_size = self.model.variable_step_size
         self._model_roadrunner.reset()
@@ -391,22 +402,22 @@ class ParameterEstimation(object):
                 setattr(self._model_roadrunner, att_key, att_val)
 
         simulated_data = self._model_roadrunner.simulate(self.model.from_time, self.model.to_time,
-                                                                    self.model.step_points)
+                                                         self.model.step_points)
         simulated_data = np.array(simulated_data)
-        simulated_x = simulated_data[:,0]
-        simulated_y = simulated_data[:,1:]
+        simulated_x = simulated_data[:, 0]
+        simulated_y = simulated_data[:, 1:]
 
         SEARCH_BEGIN_INDEX = 0
         SSE_RESULT = 0
 
         for simulated_i in range(len(simulated_y)):
             y_i = simulated_y[simulated_i]
-            #yhat_i = sample_y[simulated_i]
+            # yhat_i = sample_y[simulated_i]
 
             x_i = simulated_x[simulated_i]
-            for search_i in range(SEARCH_BEGIN_INDEX+1,len(sample_x)):
-                if(sample_x[search_i-1] <= x_i < sample_x[search_i]):
-                    yhat_i = sample_y[search_i-1]
+            for search_i in range(SEARCH_BEGIN_INDEX + 1, len(sample_x)):
+                if (sample_x[search_i - 1] <= x_i < sample_x[search_i]):
+                    yhat_i = sample_y[search_i - 1]
                     break
                 SEARCH_BEGIN_INDEX += 1
 
@@ -417,11 +428,10 @@ class ParameterEstimation(object):
 
         return SSE_RESULT ** 0.5
 
-    
-def sim_for_fake_t(rr, time):   
+
+def sim_for_fake_t(rr, time):
     results = rr.simulate(0, time, points=2)
     df_tmp = pd.DataFrame(results, columns=results.colnames)
     df_tmp = df_tmp.append(df_tmp.tail(1))
-    df_tmp.iloc[1, 0] = time*0.5
-    return df_tmp.reset_index(drop=True)    
-    
+    df_tmp.iloc[1, 0] = time * 0.5
+    return df_tmp.reset_index(drop=True)

@@ -13,7 +13,8 @@ setuptools.setup(name='xlink_kme_sbml',
       install_requires=[
           'numpy',
           'pandas',
-          'tellurium'
+          'tellurium',
+          ''
       ],
       license='MIT',
       python_requires='>=3.6'
