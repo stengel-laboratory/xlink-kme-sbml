@@ -200,9 +200,16 @@ def get_rr_const(rr, constant, id_short):
 
 
 def get_rr_const_dict(rr, constant):
+    # ugly try except workaround because Tellurium pollutes the attribute space of distinct roadrunner objects
     att_list = [a for a in dir(rr) if constant in a]
-    att_dict = {a: getattr(rr, a) for a in att_list}
-    return att_dict
+    attr_dict = {}
+    # att_dict = {a: getattr(rr, a) for a in att_list} #this would work if Tellurium wasn't buggy
+    for attr in att_list:
+        try:
+            attr_dict[attr] = getattr(rr, attr)
+        except RuntimeError as re:
+            print(re)
+    return attr_dict
 
 
 def add_initial_concentration(df, rr):

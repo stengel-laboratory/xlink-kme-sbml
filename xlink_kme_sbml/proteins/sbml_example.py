@@ -1,4 +1,4 @@
-# %%
+#!/usr/bin/env python
 from xlink_kme_sbml.library import sbml_constants as const, sbml_xl
 import tellurium as te
 import numpy as np
@@ -43,16 +43,14 @@ class AllXLReactionsExample(sbml_xl.AllXLReactionsNoDiff):
 
     def add_xl_trans_params(self, params=None):
         unique_id_kon_dict = {}
-        cnt = 0
+        skip_percentage = (self.params["n_lys"]*5)/((self.params["n_lys"] - 1)**2)
         for lys in self.species_lys:
             location_id_lys = lys.UserData[const.D_LOCATION_ID]
             for mono in self.react_mono.products:
-                cnt += 1
-                if cnt < 100:
-                    continue
-                cnt = 0
                 location_id_mono = mono.UserData[const.D_LOCATION_ID]
                 if location_id_lys == location_id_mono:
+                    continue
+                if skip_percentage <= np.random.uniform():
                     continue
                 user_data_dict = sbml_xl.get_user_data_dict(s_type=const.S_K_ON_XL, s_precursor_list=[lys, mono])
                 location_id = user_data_dict[const.D_LOCATION_ID]
@@ -105,24 +103,23 @@ class MonoReactionsNoDiffExample(sbml_xl.AllMonoReactionsNoDiff):
 min_model = sbml_xl.MinimalModel(kinetic_params={'kh': 2.5e-4, 'koff': 1e8, 'kon': 1e7}, c_linker=1)
 #min_model = sbml_xl.MinimalModelMonolinker(kinetic_params={'kh': 1e-5, 'koff': 1e-1, 'kon': 1e-3}, c_linker=25)
 # %%
-all_reactions = AllXLReactionsExample(min_model, params={"n_lys": 120})
+all_reactions = AllXLReactionsExample(min_model, params={"n_lys": 100})
 #all_reactions = MonoReactionsNoDiffExample(min_model, params={"n_lys": 100})
 #all_reactions = MonoReactionsNoDiffExample(min_model, params={"n_lys": 25})
 
-# min_model.add_compartments(2)
 # %%
 with open(
-        "/home/kai/Nextcloud-unikn/Documents/latex/kinetics/kinetic_models/model_120lys.xml", "w"
+        "tmp.xml", "w"
 ) as f:
     f.write(min_model.sbml_model.toSBML())
 
 # %%
-rr = te.loadSBMLModel(min_model.sbml_model.toSBML())
+# rr = te.loadSBMLModel(min_model.sbml_model.toSBML())
 
-with open(
-        "/home/kai/Nextcloud-unikn/Documents/latex/kinetics/kinetic_models/model_120lys.txt", "w"
-) as f:
-    f.write(rr.getAntimony())
+# with open(
+#         "/home/kai/Nextcloud-unikn/Documents/latex/kinetics/kinetic_models/model_120lys.txt", "w"
+# ) as f:
+#     f.write(rr.getAntimony())
 #
 # # %%
 # rr.draw(layout="dot")

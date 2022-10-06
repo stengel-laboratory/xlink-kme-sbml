@@ -1,21 +1,33 @@
-import simplesbml.simplesbml as sbml
-import tesbml
-import tesbml.libsbml
+import simplesbml.simplesbml as ssbml
+import pandas as pd
+import libsbml
 import xlink_kme_sbml.library.sbml_constants as const
+from prot_tools import prot_lib
 from typing import List, Tuple, Dict
 
 
 def get_user_data_dict(
-        s_type, s_pos=None, s_prot=None, s_precursor_list=None, sort_precursors=True
+        s_type, s_pos=None, s_prot=None, s_precursor_list=None, s_chain=None, sort_precursors=True
 ):
     user_data_dict = {const.D_PRECURSOR_LIST: s_precursor_list, const.D_TYPE: s_type}
+    if s_prot is not None:
+        user_data_dict[const.D_PROTEIN_LIST] = [s_prot]
     if s_pos and not s_precursor_list:
-        user_data_dict[const.D_LOCATION_LIST] = [(str(s_prot), s_pos)]
+        user_data_dict[const.D_POSITION_LIST] = [s_pos]
+        user_data_dict[const.D_CHAIN] = s_chain
+        user_data_dict[const.D_LOCATION_LIST] = [(str(s_prot), s_chain, s_pos)]
     elif s_precursor_list and not s_pos:
         for precursor in s_precursor_list:
             user_data_dict.setdefault(const.D_LOCATION_LIST, []).extend(
                 precursor.UserData[const.D_LOCATION_LIST]
             )
+            user_data_dict.setdefault(const.D_PROTEIN_LIST, []).extend(
+                precursor.UserData[const.D_PROTEIN_LIST]
+            )
+            user_data_dict.setdefault(const.D_POSITION_LIST, []).extend(
+                precursor.UserData[const.D_POSITION_LIST]
+            )
+            user_data_dict[const.D_CHAIN] = precursor.UserData[const.D_CHAIN]
     else:
         print("WARNING: Invalid combination of arguments")
     if sort_precursors:
@@ -24,14 +36,15 @@ def get_user_data_dict(
     for location in user_data_dict[const.D_LOCATION_LIST]:
         if location[0] != const.S_NONE:
             s_loc_id += f"{location[0]}_"  # protein
-        s_loc_id += f"{location[1]}_"  # sequence postion
+            s_loc_id += f"{location[1]}_"  # chain
+        s_loc_id += f"{location[2]}_"  # sequence position
     s_loc_id = s_loc_id[:-1]
     user_data_dict[const.D_LOCATION_ID] = s_loc_id
     user_data_dict[const.D_ID] = f"{s_type}_{s_loc_id}"
     return user_data_dict
 
 
-def get_location_id_dict(s_list: List[tesbml.libsbml.Species]):
+def get_location_id_dict(s_list: List[libsbml.Species]):
     loc_id_dict = {}
     for s in s_list:
         loc_id_dict[s.UserData[const.D_LOCATION_ID]] = s
@@ -67,10 +80,10 @@ class XLReaction(object):
 
     def __init__(
             self,
-            reactants: List[tesbml.libsbml.Species],
+            reactants: List[libsbml.Species],
             param_forward,
             reaction_string: str,
-            sbml_model: sbml.SbmlModel,
+            sbml_model: ssbml.SbmlModel,
             reactants_loc_id_to_products_dict=None,
     ):
         super().__init__()
@@ -79,9 +92,9 @@ class XLReaction(object):
         self.param_forward = param_forward
         self.reaction_string = reaction_string
         # should map a single or multiple (in a tuple) location ids to a product
-        self.reactants_loc_id_to_products_dict = reactants_loc_id_to_products_dict  # type: Dict[str ,tesbml.libsbml.Species]
-        self.products = []  # type: List[tesbml.libsbml.Species]
-        self.reactions = []  # type: List[tesbml.libsbml.Reaction]
+        self.reactants_loc_id_to_products_dict = reactants_loc_id_to_products_dict  # type: Dict[str ,libsbml.Species]
+        self.products = []  # type: List[libsbml.Species]
+        self.reactions = []  # type: List[libsbml.Reaction]
         self.__create_reactions()
 
     def __create_reactions(self):
@@ -96,10 +109,10 @@ class XLReaction(object):
                 reactants=self._get_reactants_for_model(reactants),
                 products=[prod.getId()],
                 expression=expr,
-            )  # type: tesbml.libsbml.Reaction
+            )  # type: libsbml.Reaction
             self.reactions.append(r.getKineticLaw())
 
-    def _create_product(self, reactants) -> tesbml.libsbml.Species:
+    def _create_product(self, reactants) -> libsbml.Species:
         if self.reactants_loc_id_to_products_dict:
             return self.reactants_loc_id_to_products_dict[reactants.UserData[const.D_LOCATION_ID]]
         else:
@@ -147,12 +160,12 @@ class XLReactionMonoTrans(XLReaction):
 
     def __init__(
             self,
-            reactants: List[tesbml.libsbml.Species],
-            param_forward: tesbml.libsbml.Parameter,
+            reactants: List[libsbml.Species],
+            param_forward: libsbml.Parameter,
             reaction_string: str,
-            sbml_model: sbml.SbmlModel,
-            crosslinker: tesbml.libsbml.Species,
-            param_backward: tesbml.libsbml.Parameter,
+            sbml_model: ssbml.SbmlModel,
+            crosslinker: libsbml.Species,
+            param_backward: libsbml.Parameter,
     ):
         print("INFO: Creating Mono Trans Reactions")
         self.crosslinker = crosslinker
@@ -177,6 +190,7 @@ class XLReactionMonoTrans(XLReaction):
     def _get_reactants_for_model(self, reactants):
         return [reactants.getId(), self.crosslinker.getId()]
 
+
 class XLReactionMono(XLReaction):
     """  
     Class representing the reaction of
@@ -186,10 +200,10 @@ class XLReactionMono(XLReaction):
 
     def __init__(
             self,
-            reactants: List[tesbml.libsbml.Species],
-            param_forward: Dict[str, tesbml.libsbml.Parameter],
+            reactants: List[libsbml.Species],
+            param_forward: Dict[str, libsbml.Parameter],
             reaction_string: str,
-            sbml_model: sbml.SbmlModel,
+            sbml_model: ssbml.SbmlModel,
             products=None,
     ):
         print("INFO: Creating Mono Reactions")
@@ -219,13 +233,13 @@ class XLReactionMonoEff(XLReaction):
 
     def __init__(
             self,
-            reactants: List[tesbml.libsbml.Species],
-            param_forward: Dict[str, tesbml.libsbml.Parameter],
+            reactants: List[libsbml.Species],
+            param_forward: Dict[str, libsbml.Parameter],
             reaction_string: str,
-            sbml_model: sbml.SbmlModel,
-            crosslinker: tesbml.libsbml.Species,
-            param_kon: tesbml.libsbml.Parameter,
-            param_koff: tesbml.libsbml.Parameter,
+            sbml_model: ssbml.SbmlModel,
+            crosslinker: libsbml.Species,
+            param_kon: libsbml.Parameter,
+            param_koff: libsbml.Parameter,
             products=None,
     ):
         print("INFO: Creating Mono Eff Reactions")
@@ -260,10 +274,10 @@ class XLReactionMonoHydrolized(XLReaction):
 
     def __init__(
             self,
-            reactants: List[tesbml.libsbml.Species],
-            param_forward: tesbml.libsbml.Parameter,
+            reactants: List[libsbml.Species],
+            param_forward: libsbml.Parameter,
             reaction_string: str,
-            sbml_model: sbml.SbmlModel,
+            sbml_model: ssbml.SbmlModel,
     ):
         print("INFO: Creating Mono Hydrolized Reactions")
         super().__init__(reactants, param_forward, reaction_string, sbml_model)
@@ -290,22 +304,27 @@ class XLReactionXLTrans(XLReaction):
 
     def __init__(
             self,
-            reactants: List[tesbml.libsbml.Species],
-            param_forward: Dict[str, tesbml.libsbml.Parameter],
+            reactants: List[libsbml.Species],
+            param_forward: Dict[str, libsbml.Parameter],
             reaction_string: str,
-            sbml_model: sbml.SbmlModel,
-            param_backward: tesbml.libsbml.Parameter,
-            reactants_2: List[tesbml.libsbml.Species],
+            sbml_model: ssbml.SbmlModel,
+            param_backward: libsbml.Parameter,
+            reactants_2: List[libsbml.Species],
     ):
         print("INFO: Creating XL Trans Reactions")
         self.param_backward = param_backward
         self.reactants_2 = reactants_2
         self.param_zero = sbml_model.addParameter(
-            "k_zero", 0
+            const.S_K_ZERO, 0
         )  # used for non-viable reactions
+        self.num_reactive = 0  # count reactions with a non-zero forward rate constant
+        self.num_non_reactive = 0  # count reactions with a zero forward rate constant
         super().__init__(reactants, param_forward, reaction_string, sbml_model)
+        print(
+            f"Created {self.num_reactive} XL reactions. "
+            f"No reaction rate found for {self.num_non_reactive} XL reactions.")
 
-    def _create_product(self, reactants) -> tesbml.libsbml.Species:
+    def _create_product(self, reactants) -> libsbml.Species:
         user_data_dict = get_user_data_dict(
             self.reaction_string, s_precursor_list=reactants, sort_precursors=False
         )
@@ -328,16 +347,18 @@ class XLReactionXLTrans(XLReaction):
         user_data_dict = get_user_data_dict(self.reaction_string, s_precursor_list=reactants)
         location_id = user_data_dict[const.D_LOCATION_ID]
         if location_id in self.param_forward:
+            self.num_reactive += 1
             return self.param_forward[location_id]
         else:
-            print(f"WARNING: No kon_xl found for {location_id}. Set to 0 instead")
+            # print(f"WARNING: No kon_xl found for {location_id}. Set to 0 instead")
+            self.num_non_reactive += 1
             return self.param_zero
 
     def _get_param_backward(self, reactants, product):
         return self.param_backward
 
     def _get_reactants(self):
-        tuple_pair_list = []  # type: List[Tuple[tesbml.libsbml.Species]]
+        tuple_pair_list = []  # type: List[Tuple[libsbml.Species]]
         for react_1 in self.reactants:
             id_1 = react_1.UserData[const.D_LOCATION_ID]
             for react_2 in self.reactants_2:
@@ -361,16 +382,16 @@ class XLReactionXL(XLReaction):
 
     def __init__(
             self,
-            reactants: List[tesbml.libsbml.Species],
-            param_forward: List[tesbml.libsbml.Parameter],
+            reactants: List[libsbml.Species],
+            param_forward: List[libsbml.Parameter],
             reaction_string: str,
-            sbml_model: sbml.SbmlModel,
+            sbml_model: ssbml.SbmlModel,
     ):
         print("INFO: Creating XL Reactions")
-        self.unique_id_prod_dict = {}  # type: Dict[str, tesbml.libsbml.Parameter]
+        self.unique_id_prod_dict = {}  # type: Dict[str, libsbml.Parameter]
         super().__init__(reactants, param_forward, reaction_string, sbml_model)
 
-    def _create_product(self, reactants) -> tesbml.libsbml.Species:
+    def _create_product(self, reactants) -> libsbml.Species:
         product_type = self.reaction_string
         user_data_dict = get_user_data_dict(self.reaction_string, s_precursor_list=[reactants])
         location_id = user_data_dict[const.D_LOCATION_ID]
@@ -414,25 +435,30 @@ class XLReactionXLEff(XLReactionXL):
 
     def __init__(
             self,
-            reactants: List[tesbml.libsbml.Species],
-            param_forward: Dict[str, tesbml.libsbml.Parameter], # kon_xl dict
+            reactants: List[libsbml.Species],
+            param_forward: Dict[str, libsbml.Parameter],  # kon_xl dict
             reaction_string: str,
-            sbml_model: sbml.SbmlModel,
-            param_klys: List[tesbml.libsbml.Parameter], # list of klys params
-            param_koff: tesbml.libsbml.Parameter,
-            reactants_2: List[tesbml.libsbml.Species],
+            sbml_model: ssbml.SbmlModel,
+            param_klys: List[libsbml.Parameter],  # list of klys params
+            param_koff: libsbml.Parameter,
+            reactants_2: List[libsbml.Species],
     ):
         print("INFO: Creating XL Eff Reactions")
         self.reactants_2 = reactants_2
         self.param_klys = param_klys
         self.param_koff = param_koff
         self.param_zero = sbml_model.addParameter(
-            "k_zero", 0
+            const.S_K_ZERO, 0
         )  # used for non-viable reactions
+        self.num_reactive = 0  # count reactions with a non-zero forward rate constant
+        self.num_non_reactive = 0  # count reactions with a zero forward rate constant
         self.unique_id_prod_dict = {}
         super().__init__(reactants, param_forward, reaction_string, sbml_model)
+        print(
+            f"Created {self.num_reactive} XL reactions. "
+            f"No reaction rate found for {self.num_non_reactive} XL reactions.")
 
-    def _create_product(self, reactants) -> tesbml.libsbml.Species:
+    def _create_product(self, reactants) -> libsbml.Species:
         product_type = self.reaction_string
         user_data_dict = get_user_data_dict(self.reaction_string, s_precursor_list=reactants)
         location_id = user_data_dict[const.D_LOCATION_ID]
@@ -445,7 +471,8 @@ class XLReactionXLEff(XLReactionXL):
         self.products.append(s)
         self.unique_id_prod_dict[location_id] = s
         return s
-    # def _create_product(self, reactants) -> tesbml.libsbml.Species:
+
+    # def _create_product(self, reactants) -> libsbml.Species:
     #     product_type = self.reaction_string
     #     user_data_dict = get_user_data_dict(product_type, s_precursor_list=reactants)
     #     product_loc_id = user_data_dict[const.D_LOCATION_ID]
@@ -460,14 +487,16 @@ class XLReactionXLEff(XLReactionXL):
         user_data_dict = get_user_data_dict(self.reaction_string, s_precursor_list=reactants)
         location_id = user_data_dict[const.D_LOCATION_ID]
         if location_id in self.param_forward:
+            self.num_reactive += 1
             return self.param_forward[location_id]
 
         else:
-            print(f"WARNING: No kon_xl found for {location_id}. Set to 0 instead")
+            #print(f"WARNING: No kon_xl found for {location_id}. Set to 0 instead")
+            self.num_non_reactive += 1
             return self.param_zero
 
     def _get_reactants(self):
-        tuple_pair_list = []  # type: List[Tuple[tesbml.libsbml.Species]]
+        tuple_pair_list = []  # type: List[Tuple[libsbml.Species]]
         for react_1 in self.reactants:
             id_1 = react_1.UserData[const.D_LOCATION_ID]
             for react_2 in self.reactants_2:
@@ -478,7 +507,7 @@ class XLReactionXLEff(XLReactionXL):
         return tuple_pair_list
 
     def _get_expr_forward(self, reactants, param_forward):
-        p_klys =  self.__get_k_lys(reactants)
+        p_klys = self.__get_k_lys(reactants)
         return f"{self.__get_k_eff(param_forward, p_klys)}*{reactants[0].getId()}*{reactants[1].getId()}"
 
     def _get_reactants_for_model(self, reactants):
@@ -508,11 +537,12 @@ class MinimalModel(object):
     - the kinetic constants kon and koff
     - the unit for kon in the form of L/(mole*sec)
     """
+
     def __init__(
             self,
-            kinetic_params: Dict[str, float] = None,# params dict
+            kinetic_params: Dict[str, float] = None,  # params dict
             c_linker: float = 1):
-        self.sbml_model = sbml.SbmlModel()
+        self.sbml_model = ssbml.SbmlModel()
         self.c_linker = c_linker
         if kinetic_params is None:
             kinetic_params = self._get_default_params()
@@ -521,9 +551,35 @@ class MinimalModel(object):
         self._add_linker()
         self._create_second_order_unit_def()
         self._add_params()
+        # these three dicts are to be filled later by the XLReaction class
+        self.dict_lys_to_param = {}
+        self.dict_xl_trans_to_product = {}
         # self.sbml_model.getCompartment('c1').setUnits('dimensionless')
 
-    def _get_default_params(self):
+    def to_df_params(self):
+        model = self.sbml_model.model  #: type: libsbml.Model
+        list_param_name, list_value = [], []
+
+        for param in model.getListOfParameters():
+            if param.getId() != const.S_K_ZERO:  # don't add helper param to df
+                list_param_name.append(param.getId())
+                list_value.append(param.getValue())
+        return pd.DataFrame({prot_lib.COL_PARAM: list_param_name,
+                             prot_lib.COL_VALUE: list_value,
+                             })
+
+    def from_df_params(self, df):
+        model = self.sbml_model.model  #: type: libsbml.Model
+        match_cnt = 0
+        for param_df, val_df in zip(df[prot_lib.COL_PARAM], df[prot_lib.COL_VALUE]):
+            param_model = model.getParameter(param_df)
+            if param_model is not None:
+                match_cnt += 1
+                param_model.setValue(val_df)
+        print(f"Set the parameter values from input for {match_cnt}/{len(df)} parameters")
+
+    @staticmethod
+    def _get_default_params():
         return {const.S_K_HYDROLYSIS: 1e-6, const.S_K_ON: 10e-4, const.S_K_OFF: 10e-1}
 
     def _add_linker(self):
@@ -547,7 +603,7 @@ class MinimalModel(object):
             reactants=[self.xl_xh.getId()],
             products=[self.xl_hh.getId()],
             expression=f"{self.p_kh.getId()}*{self.xl_xh.getId()}",
-        )  # type: tesbml.libsbml.Reaction
+        )  # type: libsbml.Reaction
 
     def _create_second_order_unit_def(self):
         # create custom unit: litre per mole per second: L/(mole*sec)
@@ -555,17 +611,17 @@ class MinimalModel(object):
         ud = self.sbml_model.getModel().createUnitDefinition()
         ud.setIdAttribute(const.S_UNIT_LITRE_PER_MOLE_PER_SECOND)
         u_m = ud.createUnit()
-        u_m.setKind(tesbml.libsbml.UNIT_KIND_MOLE)
+        u_m.setKind(libsbml.UNIT_KIND_MOLE)
         u_m.setExponent(-1)
         u_m.setScale(0)
         u_m.setMultiplier(1)
         u_l = ud.createUnit()
-        u_l.setKind(tesbml.libsbml.UNIT_KIND_LITRE)
+        u_l.setKind(libsbml.UNIT_KIND_LITRE)
         u_l.setExponent(1)
         u_l.setScale(0)
         u_l.setMultiplier(1)
         u_s = ud.createUnit()
-        u_s.setKind(tesbml.libsbml.UNIT_KIND_SECOND)
+        u_s.setKind(libsbml.UNIT_KIND_SECOND)
         u_s.setExponent(-1)
         u_s.setScale(0)
         u_s.setMultiplier(1)
@@ -573,7 +629,7 @@ class MinimalModel(object):
     def _add_params(self):
         self.p_kon = self.sbml_model.addParameter(
             const.S_K_ON, self.kinetic_params[const.S_K_ON], units=const.S_UNIT_LITRE_PER_MOLE_PER_SECOND
-        )  # type: tesbml.libsbml.Parameter
+        )  # type: libsbml.Parameter
         self.p_koff = self.sbml_model.addParameter(const.S_K_OFF, self.kinetic_params[const.S_K_OFF])
 
     def add_compartments(self, n_comp):
@@ -586,7 +642,7 @@ class MinimalModel(object):
                 _set_comp_id(obj, comp_name)
                 return None
             else:
-                obj_clone = obj.clone()  # type: tesbml.libsbml.Species
+                obj_clone = obj.clone()  # type: libsbml.Species
                 _set_comp_id(obj_clone, comp_name)
                 return obj_clone
 
@@ -598,12 +654,13 @@ class MinimalModel(object):
                 if s_name in f:
                     f = f.replace(s_name, s_name_new)
                 return f
+
             formula = r.getKineticLaw().getFormula()
             for r_ref in r.getListOfReactants():
                 formula = _updt(r_ref, formula)
             for p_ref in r.getListOfProducts():
                 formula = _updt(p_ref, formula)
-            math = tesbml.libsbml.parseL3Formula(formula)
+            math = libsbml.parseL3Formula(formula)
             r.createKineticLaw()
             r.getKineticLaw().setMath(math)
 
@@ -611,21 +668,20 @@ class MinimalModel(object):
         new_reactions = []
         for i in range(n_comp):
             self.sbml_model.addCompartment()
-        for comp in self.sbml_model.getListOfCompartments():
-            comp = comp.getId()
-            for s in self.sbml_model.getListOfSpecies():
+        for comp in self.sbml_model.getListOfCompartmentIds():
+            for s in self.sbml_model.getListOfAllSpecies():
                 s_new = _update_obj_comp(s, comp)
                 if s_new:
                     s_new.setCompartment(comp)
                     new_species.append(s_new)
-            for r in self.sbml_model.getListOfReactions():
+            for r in self.sbml_model.getListOfReactionIds():
                 r_new = _update_obj_comp(r, comp)
                 if r_new:
                     _update_reaction_comp(r_new, comp)
                     new_reactions.append(r_new)
         for s_new in new_species:
             self.sbml_model.model.addSpecies(s_new)
-        for r in self.sbml_model.getListOfReactions():
+        for r in self.sbml_model.getListOfReactionIds():
             _update_reaction_comp(r, 'c1')
         for r_new in new_reactions:
             self.sbml_model.model.addReaction(r_new)
@@ -634,7 +690,7 @@ class MinimalModel(object):
 class MinimalModelMonolinker(MinimalModel):
     def __init__(
             self,
-            kinetic_params: Dict[str, float] = None,# params dict
+            kinetic_params: Dict[str, float] = None,  # params dict
             c_linker: float = 1):
         super().__init__(kinetic_params, c_linker)
 
@@ -651,6 +707,7 @@ class MinimalModelMonolinker(MinimalModel):
             expression=f"{self.p_kh.getId()}*{self.xl_xx.getId()}",
         )
 
+
 class AllXLReactions(object):
     """
     This class needs to be overwritten to define the following functions:
@@ -661,6 +718,7 @@ class AllXLReactions(object):
     It is also possible to overwrite the create_* methods with a pass state to avoid the formation of a species.
     I.E.: def create_xl_trans(self): pass means to no crosslinks will be formed
     """
+
     def __init__(self, min_model: MinimalModel, params: Dict):
         self.min_model = min_model
         self.params = params
@@ -678,6 +736,12 @@ class AllXLReactions(object):
         self.xl_trans_dict = self.add_xl_trans_params()
         self.react_xl_trans = self.create_xl_trans()
         self.react_xl = self.create_xl()
+        self._add_params_to_min_model()
+
+    def _add_params_to_min_model(self):
+        self.min_model.dict_lys_to_param = self.lys_id_to_param_dict
+        if self.xl_trans_dict:
+            self.min_model.dict_xl_trans_to_product = self.xl_trans_dict
 
     def create_mono_trans(self):
         return XLReactionMonoTrans(
@@ -742,21 +806,21 @@ class AllXLReactions(object):
             sbml_model=self.min_model.sbml_model,
         )
 
-    def add_lys(self) -> List[tesbml.libsbml.Species]:
+    def add_lys(self) -> List[libsbml.Species]:
         """
         Must return a list of species. The species should be created here.
         """
         lys_list = []
         return lys_list
 
-    def add_lys_params(self) -> Dict[str, tesbml.libsbml.Parameter]:
+    def add_lys_params(self) -> Dict[str, libsbml.Parameter]:
         """
         Must return a dict mapping the location_id of a lys to klys. The klys parameters should be created here.
         """
         lys_to_param_dict = {}
         return lys_to_param_dict
 
-    def add_xl_trans_params(self) -> Dict[str, tesbml.libsbml.Parameter]:
+    def add_xl_trans_params(self) -> Dict[str, libsbml.Parameter]:
         """
         Must return a dict mapping the location_id of xl_trans (two lysine positions) to kon_xl.
         The kon_xl parameters should be created here.
@@ -775,6 +839,7 @@ class AllXLReactionsNoDiff(AllXLReactions):
     It is also possible to overwrite the create_* methods with a pass statement to avoid the formation of a species.
     I.E.: def create_xl_trans(self): pass means to no crosslinks will be formed
     """
+
     def __init__(self, min_model: MinimalModel, params: Dict):
         self.min_model = min_model
         self.params = params
@@ -789,6 +854,7 @@ class AllXLReactionsNoDiff(AllXLReactions):
         self.react_mono_hydro_alt = self.create_mono_hydro_alt()
         self.xl_trans_dict = self.add_xl_trans_params()
         self.react_xl = self.create_xl()
+        self._add_params_to_min_model()
 
     def create_mono(self):
         return XLReactionMonoEff(
@@ -842,6 +908,7 @@ class AllMonoReactionsNoDiff(AllXLReactionsNoDiff):
     This allows the above parameters to be supplied externally.
     It is also possible to overwrite the create_* methods with a pass statement to avoid the formation of a species.
     """
+
     def __init__(self, min_model: MinimalModel, params: Dict):
         self.min_model = min_model
         self.params = params
@@ -849,6 +916,7 @@ class AllMonoReactionsNoDiff(AllXLReactionsNoDiff):
         self.lys_id_to_param_dict = self.add_lys_params()
         self.react_mono = self.create_mono()
         self.mono_hydro_trans_prod_dict = {}
+        self._add_params_to_min_model()
 
     def create_mono(self):
         return XLReactionMonoEff(

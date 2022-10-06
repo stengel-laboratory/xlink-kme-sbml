@@ -13,6 +13,7 @@ S_K_HYDROLYSIS = "kh"
 S_K_LYS = "klys"
 S_K_ON_XL = 'kon_xl'
 S_K_GENERIC = 'rate_const'
+S_K_ZERO = 'k_zero'
 
 S_K_MAX_K_LYS = 'rate_const_max_klys'
 S_K_MAX_K_LYS_P1 = S_K_MAX_K_LYS + '_p1'
@@ -44,16 +45,17 @@ D_NAME = "name"
 D_TYPE = "type"
 D_ID = "id"
 D_LOCATION_ID = "location_id"
-D_POSITION = "position"
-D_PROTEIN = "protein"
+D_PROTEIN_LIST = "protein_list"
+D_PROTEIN = "prot"
+D_CHAIN = "chain"
 D_PRECURSOR_LIST = "precursor_list"
 D_LOCATION_LIST = "location_list"
-D_POSITION_LYSINE = "pos_lys"
+D_POSITION_LIST = "pos_list"
 D_CONCENTRATION = 'conc'
 D_MIN_DIST = 'minimum_xl_dist'
 D_MAX_DIST = 'maximum_xl_dist'
-D_REACTIVITY_DICT_MONO = 'reactivity_dict_mono'
-D_REACTIVITY_DICT_XL = 'reactivity_dict_xl'
+D_REACTIVITY_DATA_MONO = 'reactivity_dict_mono'
+D_REACTIVITY_DATA_XL = 'reactivity_dict_xl'
 
 # PLOTS
 S_EXP_NAME = 'UniProtID'

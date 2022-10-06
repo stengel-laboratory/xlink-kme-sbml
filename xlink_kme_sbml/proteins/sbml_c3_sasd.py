@@ -11,6 +11,8 @@ import pandas as pd
 
 from xlink_kme_sbml.library import sbml_constants as const, sbml_xl
 from Bio import SeqIO
+from Bio.PDB import PDBParser
+
 
 # %%
 s_eu_dist = "eucDist"
@@ -21,7 +23,7 @@ s_exp = "exp_name"
 s_pos1 = 'pos1'
 s_pos2 = 'pos2'
 
-dir_input = '../input/'
+dir_input = '../../input/'
 df_dist = pd.read_csv(
     f"{dir_input}jwalk_dist_combined.csv"
 )
@@ -110,15 +112,15 @@ def get_kon_xl(dist, mu=23, sigma=5):
 # %%
 class AllXLReactions(sbml_xl.AllXLReactionsNoDiff):
 
-    def create_xl_trans(self):
-        pass
-    #
-    def create_xl(self):
-        pass
+    # def create_xl_trans(self):
+    #     pass
+    # #
+    # def create_xl(self):
+    #     pass
 
     def add_lys(self):
         lys_list = []
-        for pos in self.params[const.D_POSITION_LYSINE]:
+        for pos in self.params[const.D_POSITION_LIST]:
             user_data_dict = sbml_xl.get_user_data_dict(s_type=const.S_LYS, s_pos=pos, s_prot='C3')
             s = self.min_model.sbml_model.addSpecies(user_data_dict[const.D_ID], 1, )
             s.setSpeciesType(user_data_dict[const.D_TYPE])
@@ -158,7 +160,7 @@ class AllXLReactions(sbml_xl.AllXLReactionsNoDiff):
                 pos_lys = lys.UserData[const.D_LOCATION_LIST][0][1]
                 pos_mono = mono.UserData[const.D_LOCATION_LIST][0][1]
                 dist = get_distance(pos_lys, pos_mono, exp=self.params[const.S_EXP])
-                if dist > 0 and dist < 35:
+                if 0 < dist < 35:
                     p_kon_xl = self.min_model.sbml_model.addParameter(
                         user_data_dict[const.D_ID],
                         get_kon_xl(dist),
@@ -168,8 +170,8 @@ class AllXLReactions(sbml_xl.AllXLReactionsNoDiff):
                     unique_id_kon_dict[location_id] = p_kon_xl
         return unique_id_kon_dict
 
-    def add_xl_trans_params(self):
-        return {}
+    # def add_xl_trans_params(self):
+    #     return {}
 
 
 # %%
@@ -182,28 +184,28 @@ asa_dict_c3b = get_asa_dict(pos_lys_c3b, exp='c3b')
 min_model_c3 = sbml_xl.MinimalModel(kinetic_params={'kh': 1e-5, 'koff': 1e-1, 'kon': 1e-3}, c_linker=111)
 # %%
 params_c3 = {
-    const.D_POSITION_LYSINE: pos_lys_c3,
+    const.D_POSITION_LIST: pos_lys_c3,
     const.S_EXP: 'c3',
 }
 all_reactions_c3 = AllXLReactions(min_model_c3, params_c3)
-min_model_c3.add_compartments(2)
+# min_model_c3.add_compartments(2)
 # %%
 print("Write model xml")
-with open("../output/model_c3_asa_mono_only_simple_comp.xml", "w") as f:
+with open("../../output/model_c3_asa_mono_only_simple_comp.xml", "w") as f:
     f.write(min_model_c3.sbml_model.toSBML())
 
 # %%
 min_model_c3b = sbml_xl.MinimalModel(kinetic_params={'kh': 1e-5, 'koff': 1e-1, 'kon': 1e-3}, c_linker=111)
 # %%
 params_c3b = {
-    const.D_POSITION_LYSINE: pos_lys_c3b,
+    const.D_POSITION_LIST: pos_lys_c3b,
     const.S_EXP: "c3b",
 }
 all_reactions_c3b = AllXLReactions(min_model_c3b, params_c3b)
-min_model_c3b.add_compartments(2)
+# min_model_c3b.add_compartments(2)
 # %%
 print("Write model xml")
-with open("../output/model_c3b_asa_mono_only_simple_comp.xml", "w") as f:
+with open("../../output/model_c3b_asa_mono_only_simple_comp.xml", "w") as f:
     f.write(min_model_c3b.sbml_model.toSBML())
 
 # %%
