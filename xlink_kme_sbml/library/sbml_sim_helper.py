@@ -116,7 +116,12 @@ def _explore_variable_runner(rr, variable, value, exp_name, mapper_dict, min_sim
     setattr(rr, variable, value)
     # crosslinker_start = rr.Crosslinker
     start = timer()
-    results = rr.simulate(0, min_simulation_time)
+    try:
+        results = rr.simulate(0, min_simulation_time, points=2)
+    except RuntimeError as e:
+        print(f"Simulation error for {variable}={value}.")
+        print(e)
+        return None
     end = timer()
     minimal_convergence = max(abs(rr.dv()))
     print(
@@ -125,7 +130,7 @@ def _explore_variable_runner(rr, variable, value, exp_name, mapper_dict, min_sim
     #       f"XL-Mono-Hydro: {rr.CrosslinkerMonoHydrolized:.2e} ({rr.CrosslinkerMonoHydrolized / crosslinker_start:.2e}); "
     #       f"XL-Bi-Hydro: {rr.CrosslinkerBiHydrolized:.2e} ({rr.CrosslinkerBiHydrolized / crosslinker_start:.2e})")
     # artificial convergence threshold
-    if minimal_convergence > 1e-15:
+    if minimal_convergence > 1e-10:
         print("WARNING: Simulation might not have converged!")
     # while minimal_convergence > 1e-18:
     #     print(f"Simulation has not converged; increasing time by a factor of 10 for {variable}={value}")
@@ -143,7 +148,8 @@ def explore_variable(rr, variable, var_range, exp_name='exp', mapper_dict=None, 
         df_res = _explore_variable_runner(rr=rr, variable=variable, value=value, exp_name=exp_name,
                                           mapper_dict=mapper_dict, min_simulation_time=min_simulation_time,
                                           custom_vars=custom_vars)
-        df_list.append(df_res)
+        if df_res is not None:
+            df_list.append(df_res)
     df_final = pd.concat(df_list)
     # df_melt = pd.melt(df_final.drop(columns=['time']), id_vars=variable)
     return df_final.reset_index(drop=True)

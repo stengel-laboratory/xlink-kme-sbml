@@ -3,6 +3,7 @@ S_REACT_XL = "XL"
 S_REACT_XL_TRANS = "XLTrans"
 S_REACT_MONO_HYDRO = "MonoHydro"
 S_REACT_MONO = "Mono"
+S_REACT_MONO_SUM = "MonoSum"
 S_REACT_MONO_TRANS = "MonoTrans"
 S_REACT_MONO_TRANS_HYDRO = "MonoTransHydro"
 
