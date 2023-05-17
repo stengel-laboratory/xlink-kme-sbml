@@ -33,13 +33,15 @@ parser.add_argument('-op', '--outname_params', type=str,
                     default='model_params.csv', help="Name of model parameters file")
 parser.add_argument('-om', '--outname_model', type=str,
                     default='model_sbml.xml', help="Name of the sbml model output file")
-parser.add_argument('-sc', '--sasd_cutoff', type=int,
+parser.add_argument('-scmin', '--sasd_cutoff_min', type=int,
+                    default=5, help="Minimum SASD for crosslinks")
+parser.add_argument('-scmax', '--sasd_cutoff_max', type=int,
                     default=30, help="Maximum SASD for crosslinks")
 args = parser.parse_args()
 
 
 # %%
-class AllXLReactions(sbml_xl.AllXLReactionsNoDiff):
+class AllXLReactions(sbml_xl.AllXLReactionsImplicitDiffusionSimple):
 
     def add_lys(self):
         df_react = self.params[const.D_REACTIVITY_DATA_MONO]
@@ -48,7 +50,7 @@ class AllXLReactions(sbml_xl.AllXLReactionsNoDiff):
                                              df_react[prot_lib.COL_PDB_CHAIN_ID], df_react[prot_lib.COL_POS],
                                              df_react[prot_lib.COL_VALUE_NORMALIZED]):
             user_data_dict = sbml_xl.get_user_data_dict(s_type=const.S_LYS, s_pos=pos, s_prot=prot, s_chain=pdb_chain)
-            s = self.min_model.sbml_model.addSpecies(user_data_dict[const.D_ID], 1, )
+            s = self.min_model.sbml_model.addSpecies(user_data_dict[const.D_ID], self.params[const.D_CONCENTRATION], )
             s.setSpeciesType(user_data_dict[const.D_TYPE])
             s.UserData = user_data_dict
             lys_list.append(s)
@@ -161,7 +163,13 @@ def get_random_reactivity(scale=0.1):
     return np.random.exponential(scale=scale)
 
 
-def get_lys_reactivity_in_range(df, val_col, min_range=0.0001, max_range=0.01, default_value_scale=1.05):
+# the range for a nhs/lysine reaction varies across orders of magnitudes
+# Acetylation of protein lysines should be around a mean of 1e-3 1/M*s (range between 1e-6 to 1e-2)
+# see: https://pubs.acs.org/doi/10.1021/acs.jpcb.0c02522
+# while isolated NHS/lysine reactions can go up to 10 1/M*s
+# see: https://onlinelibrary.wiley.com/doi/abs/10.1111/j.1399-3011.1987.tb03319.x
+# and http://www.sciencedirect.com/science/article/pii/S0003269717301112
+def get_lys_reactivity_in_range(df, val_col, min_range=1e-3, max_range=1):
     """
     Given a dataframe with some experimental data like the SASD this function will first normalize in [0, 1]
     and then scale to [min_range, max_range]. A lysine position list is used to find lysines missing from the
@@ -172,7 +180,6 @@ def get_lys_reactivity_in_range(df, val_col, min_range=0.0001, max_range=0.01, d
     :param val_col: name of the column containing the experimental measurement
     :param min_range: the minimal value of the scaled range
     :param max_range: the maximal value of the scaled range
-    :param default_value_scale: missing value are computed by the minimal scaled value multiplied by this parameter
     """
     # normalize between 0 and 1
     min_val = df[val_col].min()
@@ -206,12 +213,13 @@ def _assign_missing_lysine_reactivies(df, lys_pos_list, default_value_scale):
 def get_normal_dist(x, mu=0.0, sigma=1.0):
     return 1 / (sigma * np.sqrt(2 * np.pi)) * np.exp(-0.5 * ((x - mu) / sigma) ** 2)
 
+# correction factor adds a value of 3 (Angstrom) to both mu1 and mu2
+# this corrects for the fact, that the paper uses C beta distances while jwalk calculates C alpha distances
+def get_xl_dist(x, mu1=6.4, mu2=14.5, sigma1=1.15, sigma2=3.3, correction_factor=3):
+    return 0.11 * get_normal_dist(x, mu=mu1+correction_factor, sigma=sigma1) + 0.89 * get_normal_dist(x, mu=mu2+correction_factor, sigma=sigma2)
 
-def get_xl_dist(x, mu1=6.4, mu2=14.5, sigma1=1.15, sigma2=3.3):
-    return 0.11 * get_normal_dist(x, mu=mu1, sigma=sigma1) + 0.89 * get_normal_dist(x, mu=mu2, sigma=sigma2)
 
-
-def get_xl_reactivity(df, val_col, min_range=1e5, max_range=5e8):
+def get_xl_reactivity(df, val_col, min_range=1e6, max_range=1e9):
     # first convert SASD to experimental distribution
     df[prot_lib.COL_VALUE_NORMALIZED] = df[val_col].transform(get_xl_dist)
     # then normalize between 0 and 1
@@ -306,6 +314,8 @@ def main():
     df_sasa = None
     df_pka = None
     # fasta_records = prot_lib.get_fasta_records(inp_dict[prot_lib.COL_FASTA_FILE])
+    mol_weight_prot = prot_lib.get_pdb_mol_weight(inp_dict[prot_lib.COL_PDB_FILE])
+    print(f"Scaling concentration by molecular weight: {mol_weight_prot}")
     pdb_chain_to_uni_id_dict, lys_pos_dict = prot_lib.get_prot_lys_pos_dict_pdb(inp_dict[prot_lib.COL_PDB_FILE])
     if prot_lib.COL_PKA in inp_dict:
         df_pka = pd.read_csv(inp_dict[prot_lib.COL_PKA])
@@ -314,10 +324,12 @@ def main():
     if prot_lib.COL_DIST_SASD in inp_dict:
         df_sasd = pd.read_csv(inp_dict[prot_lib.COL_DIST_SASD])
         len_before = len(df_sasd)
-        df_sasd = df_sasd[df_sasd[prot_lib.COL_DIST_SASD] <= args.sasd_cutoff]
+        df_sasd = df_sasd[(df_sasd[prot_lib.COL_DIST_SASD] >= args.sasd_cutoff_min) &
+                          (df_sasd[prot_lib.COL_DIST_SASD] <= args.sasd_cutoff_max)]
         len_after = len(df_sasd)
         print(f"Removed {len_before-len_after} of {len_before} crosslinks,"
-              f" leaving {len_after} crosslinks below the cutoff distance of {args.sasd_cutoff}")
+              f" leaving {len_after} crosslinks above the cutoff distance of {args.sasd_cutoff_min} and below "
+              f"{args.sasd_cutoff_max}")
     df_lys_react_combined = get_lys_reactivity_df(chain_to_uni_id_dict=pdb_chain_to_uni_id_dict, df_pka=df_pka, df_sasa=df_sasa)
     df_lys_react_combined = df_lys_react_combined[df_lys_react_combined[prot_lib.COL_POS] > -1].reset_index(drop=True) # some pdbs contain negative sequence numbers; drop them
     if df_sasd is not None:
@@ -326,19 +338,25 @@ def main():
         df_xl_react_sasd = get_random_xl_reactivity_df(lys_pos_dict=lys_pos_dict, chain_to_uni_dict=pdb_chain_to_uni_id_dict)
     if args.crosslinker_conc == -1:
         xl_conc = len(df_lys_react_combined)
-        print(f"Setting equimolar crosslinker concentration: {xl_conc}")
+        print(f"Setting half-equimolar crosslinker concentration: {xl_conc}/2")
     else:
         xl_conc = args.crosslinker_conc
 
+    # adjust lys/crosslinker concentration, so that lys concentration is 1 g/L
+    # as tellurium wants concentration in mole/liter we divide 1 g/L by the molecular weight M (g/mole)
+    xl_conc /= mol_weight_prot
+    lys_conc = 2 / mol_weight_prot # set prot conc to 2 g/L
 
-    min_model_xl = sbml_xl.MinimalModel(kinetic_params={'kh': 2.5e-4, 'koff': 1e9, 'kon': 1e7}, c_linker=xl_conc)
+    min_model_xl = sbml_xl.MinimalModel(kinetic_params={'kh': 2.5e-5, 'koff': 1e9, 'kon': 1e7}, c_linker=xl_conc)
     params_xl = {
         const.D_REACTIVITY_DATA_MONO: df_lys_react_combined,
         const.D_REACTIVITY_DATA_XL: df_xl_react_sasd,
+        const.D_CONCENTRATION: lys_conc,
     }
-    min_model_mono = sbml_xl.MinimalModel(kinetic_params={'kh': 2.5e-4, 'koff': 1e9, 'kon': 1e7}, c_linker=xl_conc)
+    min_model_mono = sbml_xl.MinimalModel(kinetic_params={'kh': 2.5e-5, 'koff': 1e9, 'kon': 1e7}, c_linker=xl_conc)
     params_mono = {
         const.D_REACTIVITY_DATA_MONO: df_lys_react_combined,
+        const.D_CONCENTRATION: lys_conc,
     }
     all_reactions = AllXLReactions(min_model_xl, params_xl)
     mono_reactions = MonoReactionsOnly(min_model_mono, params_mono)

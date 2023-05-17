@@ -35,6 +35,7 @@ S_CROSSLINKER = "Crosslinker"
 S_MONOLNKER_HYDROLIZED = "MonolinkerHydrolized"
 S_MONOLINKER = "Monolinker"
 S_LYS = "LYS"
+S_RATIO_CROSSLINKER_LYSINE = "linker/lys ratio"
 
 # MISC
 S_NONE = "None"
