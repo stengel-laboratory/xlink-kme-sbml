@@ -223,7 +223,7 @@ class XLReactionMono(XLReaction):
         return f"{param_forward.getId()}*{reactants.getId()}"
 
 
-class XLReactionMonoEff(XLReaction):
+class XLReactionMonoImplicitDiffusion(XLReaction):
     """
     Class representing the reaction of
     Multiple Lysines -> Multiple Monolinks; multiple kon, no backwards reaction
@@ -263,6 +263,41 @@ class XLReactionMonoEff(XLReaction):
 
     def _get_reactants_for_model(self, reactants):
         return [reactants.getId(), self.crosslinker.getId()]
+
+class XLReactionMonoImplicitDiffusionSimple(XLReaction):
+    """
+    Class representing the reaction of
+    Multiple Lysines -> Multiple Monolinks; multiple keff, no backwards reaction, no kon/koff
+    Lys_1 + LinkerFree -> Mono_1; keff1*Lys_1*LinkerFree
+    keff = (kon*klys,i)/(koff+klys,i)
+    """
+
+    def __init__(
+            self,
+            reactants: List[libsbml.Species],
+            param_forward: Dict[str, libsbml.Parameter],
+            reaction_string: str,
+            sbml_model: ssbml.SbmlModel,
+            crosslinker: libsbml.Species,
+            products=None,
+    ):
+        print("INFO: Creating Mono Reactions")
+        self.crosslinker = crosslinker
+        super().__init__(reactants, param_forward, reaction_string, sbml_model, products)
+
+    def _get_reactants(self):
+        return self.reactants
+
+    def _get_param_forward(self, reactants):
+        # the location id of a lysine is the key in the param_forward dict
+        return self.param_forward[reactants.UserData[const.D_LOCATION_ID]]
+
+    def _get_expr_forward(self, reactants, param_forward):
+        return f"{param_forward.getId()}*{self.crosslinker.getId()}*{reactants.getId()}"
+
+    def _get_reactants_for_model(self, reactants):
+        return [reactants.getId(), self.crosslinker.getId()]
+
 
 
 class XLReactionMonoHydrolized(XLReaction):
@@ -425,7 +460,7 @@ class XLReactionXL(XLReaction):
         return f"{param_forward.getId()}*{reactants.getId()}"
 
 
-class XLReactionXLEff(XLReactionXL):
+class XLReactionXLImplicitDiffusion(XLReactionXL):
     """
     Class representing the reaction of
     Mutiple Monolinks x Multiple Lysines -> Multiple Crosslinks; multiple kon_xl, no back backwards reaction
@@ -528,6 +563,107 @@ class XLReactionXLEff(XLReactionXL):
         return None
 
 
+class XLReactionXLImplicitDiffusionSimple(XLReactionXL):
+    """
+    Class representing the reaction of
+    Mutiple Monolinks x Multiple Lysines -> Multiple Crosslinks; multiple kon_xl, no back backwards reaction
+    Lys_1 + Mono_3 -> XL_1_3; keff_xl_1_3*Lys_1*Mono_3
+    This class includes diffusion: keff_xl = (kon_xl*klys)/(koff+klys)
+    """
+
+    def __init__(
+            self,
+            reactants: List[libsbml.Species],
+            param_forward: Dict[str, libsbml.Parameter],  # kon_xl dict
+            reaction_string: str,
+            sbml_model: ssbml.SbmlModel,
+            param_klys: List[libsbml.Parameter],  # list of klys params
+            param_kon: libsbml.Parameter,
+            reactants_2: List[libsbml.Species],
+    ):
+        print("INFO: Creating XL Reactions")
+        self.reactants_2 = reactants_2
+        self.param_klys = param_klys
+        self.param_kon = param_kon
+        self.param_zero = sbml_model.addParameter(
+            const.S_K_ZERO, 0
+        )  # used for non-viable reactions
+        self.num_reactive = 0  # count reactions with a non-zero forward rate constant
+        self.num_non_reactive = 0  # count reactions with a zero forward rate constant
+        self.unique_id_prod_dict = {}
+        super().__init__(reactants, param_forward, reaction_string, sbml_model)
+        print(
+            f"Created {self.num_reactive} XL reactions. "
+            f"No reaction rate found for {self.num_non_reactive} XL reactions.")
+
+    def _create_product(self, reactants) -> libsbml.Species:
+        product_type = self.reaction_string
+        user_data_dict = get_user_data_dict(self.reaction_string, s_precursor_list=reactants)
+        location_id = user_data_dict[const.D_LOCATION_ID]
+        if location_id in self.unique_id_prod_dict:
+            return self.unique_id_prod_dict[location_id]
+        product_name = f"{product_type}_{location_id}"
+        s = self.sbml_model.addSpecies(product_name, 0)
+        s.UserData = user_data_dict
+        s.setSpeciesType(product_type)
+        self.products.append(s)
+        self.unique_id_prod_dict[location_id] = s
+        return s
+
+    # def _create_product(self, reactants) -> libsbml.Species:
+    #     product_type = self.reaction_string
+    #     user_data_dict = get_user_data_dict(product_type, s_precursor_list=reactants)
+    #     product_loc_id = user_data_dict[const.D_LOCATION_ID]
+    #     product_name = f"{product_type}_{product_loc_id}"
+    #     s = self.sbml_model.addSpecies(product_name, 0)
+    #     s.UserData = user_data_dict
+    #     s.setSpeciesType(product_type)
+    #     self.products.append(s)
+    #     return s
+
+    def _get_param_forward(self, reactants):
+        user_data_dict = get_user_data_dict(self.reaction_string, s_precursor_list=reactants)
+        location_id = user_data_dict[const.D_LOCATION_ID]
+        if location_id in self.param_forward:
+            self.num_reactive += 1
+            return self.param_forward[location_id]
+
+        else:
+            #print(f"WARNING: No kon_xl found for {location_id}. Set to 0 instead")
+            self.num_non_reactive += 1
+            return self.param_zero
+
+    def _get_reactants(self):
+        tuple_pair_list = []  # type: List[Tuple[libsbml.Species]]
+        for react_1 in self.reactants:
+            id_1 = react_1.UserData[const.D_LOCATION_ID]
+            for react_2 in self.reactants_2:
+                id_2 = react_2.UserData[const.D_LOCATION_ID]
+                if id_1 != id_2:
+                    if self._get_param_forward([react_1, react_2]) != self.param_zero:
+                        tuple_pair_list.append((react_1, react_2))
+        return tuple_pair_list
+
+    def _get_expr_forward(self, reactants, param_forward):
+        p_klys = self.__get_k_lys(reactants)
+        return f"{self.__get_k_eff(param_forward, p_klys)}*{reactants[0].getId()}*{reactants[1].getId()}"
+
+    def _get_reactants_for_model(self, reactants):
+        return [reactants[0].getId(), reactants[1].getId()]
+
+    def __get_k_eff(self, param_kon_xl, param_klys):
+        # param_forward is kon_xl
+        return f"(({param_kon_xl.getId()}*{param_klys.getId()})/({self.param_kon.getId()}))"
+
+    def __get_k_lys(self, reactants):
+        for p_lys in self.param_klys:
+            location_id_klys = p_lys.UserData[const.D_LOCATION_ID]
+            for species in reactants:
+                if species.getSpeciesType() == const.S_LYS:
+                    if location_id_klys == species.UserData[const.D_LOCATION_ID]:
+                        return p_lys
+        print("Warning: No matching klys found")
+        return None
 class MinimalModel(object):
     """
     Defines a minimal SBML model for a crosslinking reaction.
@@ -829,7 +965,7 @@ class AllXLReactions(object):
         return unique_id_kon_dict
 
 
-class AllXLReactionsNoDiff(AllXLReactions):
+class AllXLReactionsImplicitDiffusion(AllXLReactions):
     """
     This class needs to be overwritten to define the following functions:
     - add_lys(): define number and position of lysines
@@ -857,7 +993,7 @@ class AllXLReactionsNoDiff(AllXLReactions):
         self._add_params_to_min_model()
 
     def create_mono(self):
-        return XLReactionMonoEff(
+        return XLReactionMonoImplicitDiffusion(
             reactants=self.species_lys,
             param_forward=self.lys_id_to_param_dict,
             reaction_string=const.S_REACT_MONO,
@@ -876,7 +1012,7 @@ class AllXLReactionsNoDiff(AllXLReactions):
         )
 
     def create_mono_hydro_alt(self):
-        return XLReactionMonoEff(
+        return XLReactionMonoImplicitDiffusion(
             reactants=self.species_lys,
             param_forward=self.lys_id_to_param_dict,
             reaction_string=const.S_REACT_MONO_HYDRO,
@@ -888,7 +1024,7 @@ class AllXLReactionsNoDiff(AllXLReactions):
         )
 
     def create_xl(self):
-        return XLReactionXLEff(
+        return XLReactionXLImplicitDiffusion(
             reactants=self.species_lys,
             param_forward=self.xl_trans_dict,
             reaction_string=const.S_REACT_XL,
@@ -899,7 +1035,74 @@ class AllXLReactionsNoDiff(AllXLReactions):
         )
 
 
-class AllMonoReactionsNoDiff(AllXLReactionsNoDiff):
+class AllXLReactionsImplicitDiffusionSimple(AllXLReactionsImplicitDiffusion):
+    """
+    This class needs to be overwritten to define the following functions:
+    - add_lys(): define number and position of lysines
+    - add_lys_params(): define the reactivity of each lysine
+    - add_xl_trans_params(): define the reactivity of each crosslink
+    This allows the above parameters to be supplied externally.
+    It is also possible to overwrite the create_* methods with a pass statement to avoid the formation of a species.
+    I.E.: def create_xl_trans(self): pass means to no crosslinks will be formed
+    """
+
+    def __init__(self, min_model: MinimalModel, params: Dict):
+        self.min_model = min_model
+        self.params = params
+        self.species_lys = self.add_lys()
+        self.lys_id_to_param_dict = self.add_lys_params()
+        self.react_mono = self.create_mono()
+        self.react_mono_hydro = self.create_mono_hydro()
+        self.mono_hydro_trans_prod_dict = {}
+        for prod_mono_hydro in self.react_mono_hydro.products:
+            loc_id = prod_mono_hydro.UserData[const.D_LOCATION_ID]
+            self.mono_hydro_trans_prod_dict[loc_id] = prod_mono_hydro
+        self.react_mono_hydro_alt = self.create_mono_hydro_alt()
+        self.xl_trans_dict = self.add_xl_trans_params()
+        self.react_xl = self.create_xl()
+        self._add_params_to_min_model()
+
+    def create_mono(self):
+        return XLReactionMonoImplicitDiffusionSimple(
+            reactants=self.species_lys,
+            param_forward=self.lys_id_to_param_dict,
+            reaction_string=const.S_REACT_MONO,
+            sbml_model=self.min_model.sbml_model,
+            crosslinker=self.min_model.xl_xx,
+        )
+
+    def create_mono_hydro(self):
+        return XLReactionMonoHydrolized(
+            reactants=self.react_mono.products,
+            param_forward=self.min_model.p_kh,
+            reaction_string=const.S_REACT_MONO_HYDRO,
+            sbml_model=self.min_model.sbml_model,
+        )
+
+    def create_mono_hydro_alt(self):
+        return XLReactionMonoImplicitDiffusionSimple(
+            reactants=self.species_lys,
+            param_forward=self.lys_id_to_param_dict,
+            reaction_string=const.S_REACT_MONO_HYDRO,
+            sbml_model=self.min_model.sbml_model,
+            crosslinker=self.min_model.xl_xh,
+            products=self.mono_hydro_trans_prod_dict,
+        )
+
+    def create_xl(self):
+        return XLReactionXLImplicitDiffusionSimple(
+            reactants=self.species_lys,
+            param_forward=self.xl_trans_dict,
+            reaction_string=const.S_REACT_XL,
+            sbml_model=self.min_model.sbml_model,
+            param_klys=self.react_mono.param_forward.values(),
+            param_kon=self.min_model.p_kon,
+            reactants_2=self.react_mono.products,
+        )
+
+
+
+class AllMonoReactionsNoDiff(AllXLReactionsImplicitDiffusion):
     """
     Class for creating monolinks only without explicit diffusion and only a combined effective reaction rate keff
     This class needs to be overwritten to define the following functions:
@@ -919,7 +1122,7 @@ class AllMonoReactionsNoDiff(AllXLReactionsNoDiff):
         self._add_params_to_min_model()
 
     def create_mono(self):
-        return XLReactionMonoEff(
+        return XLReactionMonoImplicitDiffusion(
             reactants=self.species_lys,
             param_forward=self.lys_id_to_param_dict,
             reaction_string=const.S_REACT_MONO_HYDRO,
