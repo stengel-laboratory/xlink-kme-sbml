@@ -8,6 +8,7 @@ import tellurium as te
 import xlink_kme_sbml.library.sbml_constants as const
 import numpy as np
 from timeit import default_timer as timer
+import itertools as it
 
 # fitting imports
 
@@ -108,27 +109,31 @@ def load_and_simulate(exp, exp_type):
 # return result_list_sim
 
 
-def _explore_variable_runner(rr, variable, value, exp_name, mapper_dict, min_simulation_time, custom_vars=None):
+
+
+
+def __run_sim_runner(rr, var_name, val_name, exp_name, mapper_dict, min_simulation_time, sim_vars=None,
+                     scale_factor=None, scale_to_one=False):
     rr.resetToOrigin()
-    if custom_vars:
-        for var in custom_vars.keys():
-            setattr(rr, var, custom_vars[var])
-    setattr(rr, variable, value)
+    if sim_vars:
+        for var in sim_vars.keys():
+            # if hasattr(rr, var):
+            setattr(rr, var, sim_vars[var])
     # crosslinker_start = rr.Crosslinker
+    lys_list = [a for a in dir(rr) if const.S_LYS in a]
+    lys_initial_conc = getattr(rr, lys_list[0])
+    crosslinker_initial_conc = getattr(rr, const.S_CROSSLINKER)
     start = timer()
     try:
         results = rr.simulate(0, min_simulation_time, points=2)
     except RuntimeError as e:
-        print(f"Simulation error for {variable}={value}.")
+        print(f"Simulation error for {var_name}={val_name}.")
         print(e)
         return None
     end = timer()
     minimal_convergence = max(abs(rr.dv()))
     print(
-        f"Simulation for {variable}={value} took {int(end - start)} seconds with a convergence of {minimal_convergence}.")
-    # print(f"XL-Non-Hydro: {rr.Crosslinker:.2e} ({rr.Crosslinker / crosslinker_start:.2e}); "
-    #       f"XL-Mono-Hydro: {rr.CrosslinkerMonoHydrolized:.2e} ({rr.CrosslinkerMonoHydrolized / crosslinker_start:.2e}); "
-    #       f"XL-Bi-Hydro: {rr.CrosslinkerBiHydrolized:.2e} ({rr.CrosslinkerBiHydrolized / crosslinker_start:.2e})")
+        f"Simulation for {var_name}={val_name} took {int(end - start)} seconds with a convergence of {minimal_convergence}.")
     # artificial convergence threshold
     if minimal_convergence > 1e-10:
         print("WARNING: Simulation might not have converged!")
@@ -136,22 +141,105 @@ def _explore_variable_runner(rr, variable, value, exp_name, mapper_dict, min_sim
     #     print(f"Simulation has not converged; increasing time by a factor of 10 for {variable}={value}")
     #     return _explore_variable_runner(rr, variable, value, exp_name, mapper_dict, min_simulation_time * 10)
     df_res = get_final_frame(results)
+    lys_no = len([lys for lys in df_res.columns if const.S_LYS in lys])
     df_res = prepare_df(df_res, exp_name, mapper_dict)
-    df_res[variable] = value
+    if scale_factor:
+        df_res[const.S_VALUE] *= scale_factor
+    elif scale_to_one:
+        df_res[const.S_VALUE] /= lys_initial_conc
+    df_res[const.S_RATIO_CROSSLINKER_LYSINE] = crosslinker_initial_conc/(lys_initial_conc*lys_no)
+    rr.resetToOrigin()
+    return df_res
+
+def _explore_variable_runner(rr, variable, value, exp_name, mapper_dict, min_simulation_time, custom_vars=None,
+                             scale_factor=None, scale_to_one=False):
+    sim_vars = {variable: value}
+    if custom_vars:
+        sim_vars = {**custom_vars, variable: value}
+    df_res = __run_sim_runner(rr, var_name=variable, val_name=value, exp_name=exp_name, mapper_dict=mapper_dict,
+                              min_simulation_time=min_simulation_time, sim_vars=sim_vars, scale_factor=scale_factor,
+                              scale_to_one=scale_to_one)
+    if df_res is not None:
+        df_res[variable] = value
+    return df_res
+
+def _explore_variable_runner_mult(rr, var_val_dict, exp_name, mapper_dict, min_simulation_time, sim_vars=None,
+                                  scale_factor=None, scale_to_one=False):
+    var_names = list(var_val_dict.keys())
+    vals = list(var_val_dict.values())
+    df_res = __run_sim_runner(rr, var_name=var_names, val_name=vals, exp_name=exp_name, mapper_dict=mapper_dict,
+                              min_simulation_time=min_simulation_time, sim_vars=sim_vars, scale_factor=scale_factor,
+                              scale_to_one=scale_to_one)
+    if df_res is not None:
+        for variable, value in var_val_dict.items():
+            df_res[variable] = value
     return df_res
 
 
 def explore_variable(rr, variable, var_range, exp_name='exp', mapper_dict=None, custom_vars=None,
-                     min_simulation_time=5000000):
+                     min_simulation_time=5000000, scale_factor=None, scale_to_one=False):
     df_list = []
     for value in var_range:
         df_res = _explore_variable_runner(rr=rr, variable=variable, value=value, exp_name=exp_name,
                                           mapper_dict=mapper_dict, min_simulation_time=min_simulation_time,
-                                          custom_vars=custom_vars)
+                                          custom_vars=custom_vars, scale_factor=scale_factor, scale_to_one=scale_to_one)
         if df_res is not None:
             df_list.append(df_res)
     df_final = pd.concat(df_list)
     # df_melt = pd.melt(df_final.drop(columns=['time']), id_vars=variable)
+    return df_final.reset_index(drop=True)
+
+
+def explore_variable_multi(rr, variable_range_dict, exp_name='exp', mapper_dict=None, custom_vars=None,
+                           min_simulation_time=5000000, scale_factor=None, scale_to_one=False, var_operation_dict=None):
+    """
+    Allows the multidimensional simulation of an arbitrary number of variables
+    """
+    # variables in the var range dict can either be simply overriden (var_operation_dict=None)
+    # or have some mathematical operation applied on the model's default value
+    def _apply_var_operation(rr, var, var_operation_dict, new_value, var_name_long=None):
+        if var_operation_dict and var in var_operation_dict:
+            if var_name_long:
+                if hasattr(rr, var_name_long):
+                    original_value = getattr(rr, var_name_long)
+                else:
+                    return 0
+            else:
+                if hasattr(rr, var):
+                    original_value = getattr(rr, var)
+                else:
+                    return 0
+            if var_operation_dict[var] == '+':
+                return new_value + original_value
+            elif var_operation_dict[var] == '*':
+                return new_value * original_value
+            elif var_operation_dict[var] == '/':
+                return new_value / original_value
+            elif var_operation_dict[var] == '-':
+                return new_value - original_value
+        return new_value
+    df_list = []
+    values_all_combinations = it.product(*variable_range_dict.values())
+    for val_tuple in values_all_combinations:
+        var_val_dict = {}
+        sim_vars = {}
+        rr.resetToOrigin() # otherwise getting the original value for value operations is not reliable
+        for n, var in enumerate(variable_range_dict.keys()):
+            if type(var) is tuple:
+                var, vars = var
+                for v in vars:
+                    sim_vars[v] = _apply_var_operation(rr=rr, var=var, var_operation_dict=var_operation_dict, new_value=val_tuple[n], var_name_long=v)
+            else:
+                sim_vars[var] = _apply_var_operation(rr=rr, var=var, var_operation_dict=var_operation_dict, new_value=val_tuple[n])
+            var_val_dict[var] = val_tuple[n]  # contains the 'short' var names, i.e. LYS instead of [LYS_1, LYS_2, ...]
+        df_res = _explore_variable_runner_mult(rr=rr, var_val_dict=var_val_dict, exp_name=exp_name,
+                                               mapper_dict=mapper_dict, min_simulation_time=min_simulation_time,
+                                               sim_vars={**custom_vars, **sim_vars}, scale_factor=scale_factor,
+                                               scale_to_one=scale_to_one,
+                                               )
+        if df_res is not None:
+            df_list.append(df_res)
+    df_final = pd.concat(df_list)
     return df_final.reset_index(drop=True)
 
 
