@@ -7,6 +7,7 @@ The easiest way to install is to first follow the instructions for the prot_tool
 Having done so, the missing packages can be installed with
 
     conda activate prot_tools
+    conda install scipy matplotlib python-libsbml jinja2 plotly
     pip install tellurium simplesbml tesbml
 
 Note that at least on Fedora 35 Tellurium needs ncurses-libs and ncurses-compat-libs installed:
