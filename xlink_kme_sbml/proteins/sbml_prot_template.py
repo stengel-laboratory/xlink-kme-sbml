@@ -46,7 +46,7 @@ args = parser.parse_args()
 
 
 # %%
-class AllXLReactions(sbml_xl.AllXLReactionsNoDiff):
+class AllXLReactions(sbml_xl.AllXLReactionsImplicitDiffusion):
 
     def add_lys(self):
         lys_list = []

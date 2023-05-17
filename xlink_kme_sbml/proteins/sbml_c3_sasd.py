@@ -110,7 +110,7 @@ def get_kon_xl(dist, mu=23, sigma=5):
 
 
 # %%
-class AllXLReactions(sbml_xl.AllXLReactionsNoDiff):
+class AllXLReactions(sbml_xl.AllXLReactionsImplicitDiffusion):
 
     # def create_xl_trans(self):
     #     pass
