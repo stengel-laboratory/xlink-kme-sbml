@@ -1,3 +1,7 @@
+"""
+2023-09 Kai-Michael Kammer
+Constants used for kinetic model creation
+"""
 # REACTIONS
 S_REACT_XL = "XL"
 S_REACT_XL_TRANS = "XLTrans"
@@ -6,6 +10,9 @@ S_REACT_MONO = "Mono"
 S_REACT_MONO_SUM = "MonoSum"
 S_REACT_MONO_TRANS = "MonoTrans"
 S_REACT_MONO_TRANS_HYDRO = "MonoTransHydro"
+
+S_REACT_DISPLAY_MONO = 'Mono-link'
+S_REACT_DISPLAY_XL = 'Cross-link'
 
 # KINETIC CONSTANTS
 S_K_OFF = "koff"
@@ -36,11 +43,14 @@ S_MONOLNKER_HYDROLIZED = "MonolinkerHydrolized"
 S_MONOLINKER = "Monolinker"
 S_LYS = "LYS"
 S_RATIO_CROSSLINKER_LYSINE = "linker/lys ratio"
+S_MOLECULAR_WEIGHT = 'MolecularWeight'
+S_NUM_LYS = 'NumLys'
 
 # MISC
 S_NONE = "None"
 S_EXP = 'exp'
 S_PROT = 'protein'
+S_IMPUTED = 'isImputed'
 
 # MODEL STRINGS
 D_NAME = "name"
@@ -65,8 +75,12 @@ S_SIM_NAME = 'SimName'
 S_UXID = "uxID"
 S_SUFFIX_EXP = "_exp"
 S_SUFFIX_SIM = "_sim"
+S_SUFFIX_SCALED = "_scaled"
 S_VALUE = "value"
+S_VALUE_SCALED = S_VALUE + S_SUFFIX_SCALED
+S_VALUE_GL = "value_g_per_l"
 S_LOG2RATIO = "log2ratio"
+S_REACTION_RATIO = "Reaction Ratio"
 S_UID_REV = "uID_rev"
 S_UID = "uID"
 S_UID_SHORT = "uID_short"
@@ -75,6 +89,26 @@ S_VAR = "variable"
 S_NXL1 = 'nxl1'
 S_NXL2 = 'nxl2'
 S_NXL_SUM = 'nxl_sum'
+S_COND = 'cond'
+
+# SUPP_EXP
+S_SUFFIX_REF = "_ref"
+S_SUFFIX_CHANGE = "_change"
+S_SUFFIX_INC_ABS = "_inc_abs"
+S_VALUE_REF = S_VALUE + S_SUFFIX_REF
+S_VALUE_SCALED_REF = S_VALUE_SCALED + S_SUFFIX_REF
+S_K_GENERIC_REF = S_K_GENERIC + S_SUFFIX_REF
+S_COND_REF = S_COND + S_SUFFIX_REF
+S_VALUE_CHANGE = S_VALUE + S_SUFFIX_CHANGE
+S_VALUE_INC_ABS = S_VALUE + S_SUFFIX_INC_ABS
+S_VALUE_SCALED_CHANGE = S_VALUE_SCALED + S_SUFFIX_CHANGE
+S_VALUE_SCALED_INC_ABS = S_VALUE_SCALED + S_SUFFIX_INC_ABS
+S_LOG2RATIO_SCALED = S_LOG2RATIO + S_SUFFIX_SCALED
+S_REACTION_RATIO_SCALED = S_REACTION_RATIO + S_SUFFIX_SCALED
+
+var_supp_ref_list = [S_VALUE_REF, S_VALUE_SCALED_REF, S_K_GENERIC_REF, S_COND_REF]
+
+
 
 # list of explorable variables
 var_explore_list = [S_K_OFF, S_K_ON, S_K_HYDROLYSIS, S_CROSSLINKER]
