@@ -9,12 +9,12 @@ import argparse
 from prot_tools import prot_lib
 from xlink_kme_sbml.library import sbml_constants as const, sbml_xl
 
-desc = """Kai Kammer - 2021-03. 
-Create a kinetic model of a protein. The final model depends on the input files provided. P
-Additionally providing files containing accessible surface area (SAS) and/or pKa values for the residues will
-incorporate these into the lysine reactivity. 
-The same is true for crosslinks: if a file containing SASD or Euclidean distances is given the crosslink 
-reactivities will be adjusted accordingly. Alternatively they can either be fixed or be drawn from a normal distribution
+"""
+2023-09 Kai-Michael Kammer
+"""
+
+desc = """
+Create a kinetic crosslinking model of a protein. The final model depends on the input files provided.
 """
 
 parser = argparse.ArgumentParser(description=desc, formatter_class=argparse.ArgumentDefaultsHelpFormatter)
@@ -29,8 +29,6 @@ parser.add_argument('input', action="store", default=None, type=str, nargs='+',
 parser.add_argument('-c', '--crosslinker_conc', default=-1, type=int,
                     help="Crosslinker concentration. If none is given (i.e. the default of -1) then "
                          "equimolar concentration with respect to the lysines is used.")
-parser.add_argument('-op', '--outname_params', type=str,
-                    default='model_params.csv', help="Name of model parameters file")
 parser.add_argument('-om', '--outname_model', type=str,
                     default='model_sbml.xml', help="Name of the sbml model output file")
 parser.add_argument('-scmin', '--sasd_cutoff_min', type=int,
@@ -332,28 +330,32 @@ def main():
               f"{args.sasd_cutoff_max}")
     df_lys_react_combined = get_lys_reactivity_df(chain_to_uni_id_dict=pdb_chain_to_uni_id_dict, df_pka=df_pka, df_sasa=df_sasa)
     df_lys_react_combined = df_lys_react_combined[df_lys_react_combined[prot_lib.COL_POS] > -1].reset_index(drop=True) # some pdbs contain negative sequence numbers; drop them
+    num_lys = len(df_lys_react_combined)
     if df_sasd is not None:
         df_xl_react_sasd = get_xl_reactivity(df_sasd, val_col=prot_lib.COL_DIST_SASD)
     else:
         df_xl_react_sasd = get_random_xl_reactivity_df(lys_pos_dict=lys_pos_dict, chain_to_uni_dict=pdb_chain_to_uni_id_dict)
     if args.crosslinker_conc == -1:
-        xl_conc = len(df_lys_react_combined)
-        print(f"Setting half-equimolar crosslinker concentration: {xl_conc}/2")
+        xl_conc = num_lys/2
+        print(f"Setting half-equimolar crosslinker concentration: {num_lys}/2")
     else:
         xl_conc = args.crosslinker_conc
 
     # adjust lys/crosslinker concentration, so that lys concentration is 1 g/L
     # as tellurium wants concentration in mole/liter we divide 1 g/L by the molecular weight M (g/mole)
-    xl_conc /= mol_weight_prot
-    lys_conc = 2 / mol_weight_prot # set prot conc to 2 g/L
+    xl_conc /= mol_weight_prot # set linker conc to 0,5 g/L * lysine number
+    lys_conc = 1 / mol_weight_prot # set prot conc to 1 g/L
 
-    min_model_xl = sbml_xl.MinimalModel(kinetic_params={'kh': 2.5e-5, 'koff': 1e9, 'kon': 1e7}, c_linker=xl_conc)
+    # lys_conc = 5.5e-6
+    # xl_conc = num_lys*lys_conc/2
+
+    min_model_xl = sbml_xl.MinimalModel(kinetic_params={'kh': 2.5e-5, 'koff': 1e9, 'kon': 1e7}, c_linker=xl_conc, mol_weight=mol_weight_prot, num_lys=num_lys)
     params_xl = {
         const.D_REACTIVITY_DATA_MONO: df_lys_react_combined,
         const.D_REACTIVITY_DATA_XL: df_xl_react_sasd,
         const.D_CONCENTRATION: lys_conc,
     }
-    min_model_mono = sbml_xl.MinimalModel(kinetic_params={'kh': 2.5e-5, 'koff': 1e9, 'kon': 1e7}, c_linker=xl_conc)
+    min_model_mono = sbml_xl.MinimalModel(kinetic_params={'kh': 2.5e-5, 'koff': 1e9, 'kon': 1e7}, c_linker=xl_conc, mol_weight=mol_weight_prot, num_lys=num_lys)
     params_mono = {
         const.D_REACTIVITY_DATA_MONO: df_lys_react_combined,
         const.D_CONCENTRATION: lys_conc,
@@ -373,8 +375,9 @@ def main():
     with open(outname_mono_only, "w") as f:
         f.write(min_model_mono.sbml_model.toSBML())
     print(f"Write mono-only model xml to {outname_mono_only}")
-    min_model_xl.to_df_params().to_csv(args.outname_params, index=False)
-    print(f"Write model params to {args.outname_params}")
+    outname_params =  args.outname_model.replace(".xml", "_params.csv")
+    min_model_xl.to_df_params().to_csv(outname_params, index=False)
+    print(f"Write model params to {outname_params}")
 
 
 if __name__ == "__main__":
