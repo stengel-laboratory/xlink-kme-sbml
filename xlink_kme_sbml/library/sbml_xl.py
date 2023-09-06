@@ -5,7 +5,10 @@ import xlink_kme_sbml.library.sbml_constants as const
 from prot_tools import prot_lib
 from typing import List, Tuple, Dict
 
-
+"""
+2023-09 Kai-Michael Kammer
+Library to create kinetic models of crosslink reactions
+"""
 def get_user_data_dict(
         s_type, s_pos=None, s_prot=None, s_precursor_list=None, s_chain=None, sort_precursors=True
 ):
@@ -264,6 +267,7 @@ class XLReactionMonoImplicitDiffusion(XLReaction):
     def _get_reactants_for_model(self, reactants):
         return [reactants.getId(), self.crosslinker.getId()]
 
+
 class XLReactionMonoImplicitDiffusionSimple(XLReaction):
     """
     Class representing the reaction of
@@ -297,7 +301,6 @@ class XLReactionMonoImplicitDiffusionSimple(XLReaction):
 
     def _get_reactants_for_model(self, reactants):
         return [reactants.getId(), self.crosslinker.getId()]
-
 
 
 class XLReactionMonoHydrolized(XLReaction):
@@ -526,7 +529,7 @@ class XLReactionXLImplicitDiffusion(XLReactionXL):
             return self.param_forward[location_id]
 
         else:
-            #print(f"WARNING: No kon_xl found for {location_id}. Set to 0 instead")
+            # print(f"WARNING: No kon_xl found for {location_id}. Set to 0 instead")
             self.num_non_reactive += 1
             return self.param_zero
 
@@ -629,7 +632,7 @@ class XLReactionXLImplicitDiffusionSimple(XLReactionXL):
             return self.param_forward[location_id]
 
         else:
-            #print(f"WARNING: No kon_xl found for {location_id}. Set to 0 instead")
+            # print(f"WARNING: No kon_xl found for {location_id}. Set to 0 instead")
             self.num_non_reactive += 1
             return self.param_zero
 
@@ -664,6 +667,8 @@ class XLReactionXLImplicitDiffusionSimple(XLReactionXL):
                         return p_lys
         print("Warning: No matching klys found")
         return None
+
+
 class MinimalModel(object):
     """
     Defines a minimal SBML model for a crosslinking reaction.
@@ -677,7 +682,10 @@ class MinimalModel(object):
     def __init__(
             self,
             kinetic_params: Dict[str, float] = None,  # params dict
-            c_linker: float = 1):
+            c_linker: float = 1,
+            mol_weight: float = None,
+            num_lys: int = None,
+    ):
         self.sbml_model = ssbml.SbmlModel()
         self.c_linker = c_linker
         if kinetic_params is None:
@@ -690,6 +698,10 @@ class MinimalModel(object):
         # these three dicts are to be filled later by the XLReaction class
         self.dict_lys_to_param = {}
         self.dict_xl_trans_to_product = {}
+        if mol_weight:
+            self.sbml_model.addParameter(const.S_MOLECULAR_WEIGHT, val=mol_weight)
+        if num_lys:
+            self.sbml_model.addParameter(const.S_NUM_LYS, val=num_lys)
         # self.sbml_model.getCompartment('c1').setUnits('dimensionless')
 
     def to_df_params(self):
@@ -1099,7 +1111,6 @@ class AllXLReactionsImplicitDiffusionSimple(AllXLReactionsImplicitDiffusion):
             param_kon=self.min_model.p_kon,
             reactants_2=self.react_mono.products,
         )
-
 
 
 class AllMonoReactionsNoDiff(AllXLReactionsImplicitDiffusion):

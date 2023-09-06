@@ -4,13 +4,44 @@ import numpy as np
 #import seaborn as sns
 import xlink_kme_sbml.library.sbml_constants as const
 import xlink_kme_sbml.library.sbml_sim_helper as helper
-import link_library.plot_library as plib
-alt.data_transformers.disable_max_rows()
+import os
+alt.data_transformers.enable("vegafusion")
 
-"""Kai Kammer - 2020-08. 
+"""
+2023-09 Kai-Michael Kammer
 Library of classes to visualize kinetic crosslink simulations
 """
 
+def create_plots_dir(out_dir = 'plots'):
+    os.makedirs(out_dir, exist_ok=True)
+    os.makedirs(out_dir + '/svg', exist_ok=True)
+    os.makedirs(out_dir + '/csv', exist_ok=True)
+    return out_dir
+def save_g(fg, out_name, df_list=None, out_dir='plots', **kwargs):
+    out_dir = create_plots_dir(out_dir)
+    if 'altair' in str(type(fg)):
+        fg.save("{0}/plot_{1}.png".format(out_dir, out_name), scale_factor=2)
+        fg.save("{0}/plot_{1}.svg".format(out_dir + '/svg', out_name))
+    else:
+        fg.savefig("{0}/plot_{1}.png".format(out_dir, out_name), **kwargs)
+        fg.savefig("{0}/plot_{1}.svg".format(out_dir + '/svg', out_name), **kwargs)
+    write_csv(df_list, out_dir, out_name)
+
+
+def write_csv(df_list, out_dir, out_name):
+    if df_list is not None:
+        # is it really a list?
+        if isinstance(df_list, list):
+            for n, df_list in enumerate(df_list):
+                if isinstance(df_list, pd.DataFrame):
+                    df_list.to_csv(f"{out_dir + '/csv'}/plot_{out_name}_{n}.csv")
+                else:
+                    print(f"ERROR: Unknown object passed for saving: {type(df_list)}")
+        # it's just a single dataframe then
+        elif isinstance(df_list, pd.DataFrame):
+            df_list.to_csv(f"{out_dir + '/csv'}/plot_{out_name}.csv")
+        else:
+            print(f"ERROR: Unknown object passed for saving: {type(df_list)}")
 
 
 class PlotMasterVariableExplorer(object):
@@ -33,7 +64,7 @@ class PlotMasterVariableExplorer(object):
     def plot_all(self):
         def _save(plot, name):
             print(f"Saving {name} plot")
-            plib.save_g(plot, f"kme_explore_{self.df[const.S_EXP][0]}_{self.var_name}_{name}", [self.df],
+            save_g(plot, f"kme_explore_{self.df[const.S_EXP][0]}_{self.var_name}_{name}", [self.df],
                         out_dir=self.out_dir)
         plot_var = self.get_var_plot()
         _save(plot_var, 'var')
@@ -316,25 +347,25 @@ class PlotMasterTwoStates(object):
 
     def plot_all(self):
         plot_sim_abs = self.plot_yield_abs()
-        plib.save_g(plot_sim_abs, "kme_sim_yield_abs", [self.df_s1_melt, self.df_s2_melt], out_dir=self.out_dir)
+        save_g(plot_sim_abs, "kme_sim_yield_abs", [self.df_s1_melt, self.df_s2_melt], out_dir=self.out_dir)
 
         plot_sim_log2 = self.plot_log2ratio_by_link_type()
-        plib.save_g(plot_sim_log2, "kme_sim_log2ratio", [self.df_log2], out_dir=self.out_dir)
+        save_g(plot_sim_log2, "kme_sim_log2ratio", [self.df_log2], out_dir=self.out_dir)
 
         if self.df_xtract is not None:
             plot_sim_vs_exp_log2_abs = self.plot_log2_exp_vs_sim_abs()
-            plib.save_g(plot_sim_vs_exp_log2_abs, "kme_sim_vs_exp_log2_abs", [self.df_xtract_sim_merge],
+            save_g(plot_sim_vs_exp_log2_abs, "kme_sim_vs_exp_log2_abs", [self.df_xtract_sim_merge],
                         out_dir=self.out_dir)
             plot_sim_vs_exp_log2_regr = self.plot_log2_exp_vs_sim_regression()
-            plib.save_g(plot_sim_vs_exp_log2_regr, "kme_sim_vs_exp_log2_regression", [self.df_xtract_sim_merge],
+            save_g(plot_sim_vs_exp_log2_regr, "kme_sim_vs_exp_log2_regression", [self.df_xtract_sim_merge],
                         out_dir=self.out_dir)
             if "ms1_area_sum" in self.df_xtract:
                 plot_sim_vs_exp_abs_yield = self.plot_yield_abs_sim_vs_exp()
-                plib.save_g(plot_sim_vs_exp_abs_yield, "kme_sim_vs_exp_abs_yield", [self.df_concat, self.df_xtract],
+                save_g(plot_sim_vs_exp_abs_yield, "kme_sim_vs_exp_abs_yield", [self.df_concat, self.df_xtract],
                             out_dir=self.out_dir)
             if self.df_dist is not None:
                 plot_exp_log2_vs_delta_dist = self.plot_log2ratio_vs_dist_delta()
-                plib.save_g(plot_exp_log2_vs_delta_dist, "kme_exp_log2_vs_delta_dist_regression",
+                save_g(plot_exp_log2_vs_delta_dist, "kme_exp_log2_vs_delta_dist_regression",
                             [self.df_dist, self.df_xtract],
                             out_dir=self.out_dir)
 

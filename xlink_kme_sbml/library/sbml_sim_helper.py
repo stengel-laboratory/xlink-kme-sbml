@@ -1,6 +1,3 @@
-#!/usr/bin/env python
-# %%
-# fitting imports
 from __future__ import print_function, absolute_import
 
 import pandas as pd
@@ -10,17 +7,12 @@ import numpy as np
 from timeit import default_timer as timer
 import itertools as it
 
-# fitting imports
-
-import csv
-from scipy.optimize import differential_evolution
-import random
-
-
-# from multiprocessing.pool import Pool
+"""
+2023-09 Kai-Michael Kammer
+Functions to facilitate crosslink model creation
+"""
 
 
-# %%
 def load_model(exp, exp_type):
     print(f"Loading {exp}_{exp_type} model")
     rr = te.loadSBMLModel(f"../output/model_{exp}_{exp_type}.xml")
@@ -65,55 +57,10 @@ def load_and_simulate(exp, exp_type):
     return rr, results
 
 
-# result_list_sim = []
-#
-#
-# def log_result_sim(result):
-#     # This is called whenever foo_pool(i) returns a result.
-#     # result_list is modified only by the main process, not the pool workers.
-#     result_list_sim.append(result)
-#
-#
-# result_list_load = []
-#
-#
-# def log_result_load(result):
-#     # This is called whenever foo_pool(i) returns a result.
-#     # result_list is modified only by the main process, not the pool workers.
-#     result_list_load.append(result)
-
-
-# does not work with SWIG objects which Tellurium is using
-# def load_and_simulate_async(exp, exp_type, variable, var_range, mapper_dict=None):
-# with Pool(len(var_range)) as pool:
-#     poolObjects = []
-#     for value in var_range:
-#         poolObjects.append(pool.apply_async(load_model, args=(exp, exp_type), callback=log_result_load))
-#     pool.close()
-#     pool.join()
-#     for f in poolObjects:
-#         f.get()
-# print(result_list_load)
-# rr = load_model(exp, exp_type)
-# result_list_load = [ for rr in ]
-# with Pool(len(var_range)) as pool:
-#     poolObjects = []
-#     for i, value in enumerate(var_range):
-#         # rr = load_model(exp, exp_type)
-#         poolObjects.append(pool.apply_async(_explore_variable_runner, args=(rr, variable, value, exp, mapper_dict),
-#                          callback=log_result_sim))
-#     pool.close()
-#     pool.join()
-#     for f in poolObjects:
-#         f.get()
-# return result_list_sim
-
-
-
 
 
 def __run_sim_runner(rr, var_name, val_name, exp_name, mapper_dict, min_simulation_time, sim_vars=None,
-                     scale_factor=None, scale_to_one=False):
+                     scale_factor=None):
     rr.resetToOrigin()
     if sim_vars:
         for var in sim_vars.keys():
@@ -122,6 +69,8 @@ def __run_sim_runner(rr, var_name, val_name, exp_name, mapper_dict, min_simulati
     # crosslinker_start = rr.Crosslinker
     lys_list = [a for a in dir(rr) if const.S_LYS in a]
     lys_initial_conc = getattr(rr, lys_list[0])
+    lys_no = getattr(rr, const.S_NUM_LYS, None)
+    mol_weight = getattr(rr, const.S_MOLECULAR_WEIGHT, None)
     crosslinker_initial_conc = getattr(rr, const.S_CROSSLINKER)
     start = timer()
     try:
@@ -141,35 +90,36 @@ def __run_sim_runner(rr, var_name, val_name, exp_name, mapper_dict, min_simulati
     #     print(f"Simulation has not converged; increasing time by a factor of 10 for {variable}={value}")
     #     return _explore_variable_runner(rr, variable, value, exp_name, mapper_dict, min_simulation_time * 10)
     df_res = get_final_frame(results)
-    lys_no = len([lys for lys in df_res.columns if const.S_LYS in lys])
     df_res = prepare_df(df_res, exp_name, mapper_dict)
     if scale_factor:
-        df_res[const.S_VALUE] *= scale_factor
-    elif scale_to_one:
-        df_res[const.S_VALUE] /= lys_initial_conc
-    df_res[const.S_RATIO_CROSSLINKER_LYSINE] = crosslinker_initial_conc/(lys_initial_conc*lys_no)
+        df_res[const.S_VALUE_SCALED] = df_res[const.S_VALUE] * scale_factor
+    else:
+        if mol_weight:
+            df_res[const.S_VALUE_SCALED] = df_res[const.S_VALUE] * mol_weight
+    if lys_no:
+        df_res[const.S_RATIO_CROSSLINKER_LYSINE] = crosslinker_initial_conc/(lys_initial_conc*lys_no)
     rr.resetToOrigin()
     return df_res
 
 def _explore_variable_runner(rr, variable, value, exp_name, mapper_dict, min_simulation_time, custom_vars=None,
-                             scale_factor=None, scale_to_one=False):
+                             scale_factor=None):
     sim_vars = {variable: value}
     if custom_vars:
         sim_vars = {**custom_vars, variable: value}
     df_res = __run_sim_runner(rr, var_name=variable, val_name=value, exp_name=exp_name, mapper_dict=mapper_dict,
                               min_simulation_time=min_simulation_time, sim_vars=sim_vars, scale_factor=scale_factor,
-                              scale_to_one=scale_to_one)
+                              )
     if df_res is not None:
         df_res[variable] = value
     return df_res
 
 def _explore_variable_runner_mult(rr, var_val_dict, exp_name, mapper_dict, min_simulation_time, sim_vars=None,
-                                  scale_factor=None, scale_to_one=False):
+                                  scale_factor=None):
     var_names = list(var_val_dict.keys())
     vals = list(var_val_dict.values())
     df_res = __run_sim_runner(rr, var_name=var_names, val_name=vals, exp_name=exp_name, mapper_dict=mapper_dict,
                               min_simulation_time=min_simulation_time, sim_vars=sim_vars, scale_factor=scale_factor,
-                              scale_to_one=scale_to_one)
+                              )
     if df_res is not None:
         for variable, value in var_val_dict.items():
             df_res[variable] = value
@@ -177,12 +127,12 @@ def _explore_variable_runner_mult(rr, var_val_dict, exp_name, mapper_dict, min_s
 
 
 def explore_variable(rr, variable, var_range, exp_name='exp', mapper_dict=None, custom_vars=None,
-                     min_simulation_time=5000000, scale_factor=None, scale_to_one=False):
+                     min_simulation_time=5000000, scale_factor=None):
     df_list = []
     for value in var_range:
         df_res = _explore_variable_runner(rr=rr, variable=variable, value=value, exp_name=exp_name,
                                           mapper_dict=mapper_dict, min_simulation_time=min_simulation_time,
-                                          custom_vars=custom_vars, scale_factor=scale_factor, scale_to_one=scale_to_one)
+                                          custom_vars=custom_vars, scale_factor=scale_factor)
         if df_res is not None:
             df_list.append(df_res)
     df_final = pd.concat(df_list)
@@ -191,7 +141,7 @@ def explore_variable(rr, variable, var_range, exp_name='exp', mapper_dict=None, 
 
 
 def explore_variable_multi(rr, variable_range_dict, exp_name='exp', mapper_dict=None, custom_vars=None,
-                           min_simulation_time=5000000, scale_factor=None, scale_to_one=False, var_operation_dict=None):
+                           min_simulation_time=5000000, scale_factor=None, var_operation_dict=None):
     """
     Allows the multidimensional simulation of an arbitrary number of variables
     """
@@ -235,7 +185,6 @@ def explore_variable_multi(rr, variable_range_dict, exp_name='exp', mapper_dict=
         df_res = _explore_variable_runner_mult(rr=rr, var_val_dict=var_val_dict, exp_name=exp_name,
                                                mapper_dict=mapper_dict, min_simulation_time=min_simulation_time,
                                                sim_vars={**custom_vars, **sim_vars}, scale_factor=scale_factor,
-                                               scale_to_one=scale_to_one,
                                                )
         if df_res is not None:
             df_list.append(df_res)
@@ -370,169 +319,4 @@ def get_explored_var_name(df):
     return None
 
 
-# if __name__ == '__main__':
-#     load_and_simulate_async('c3', 'asa', 'kh', [1e-5, 1e-4, 1e-3, 1e-2])
-# %%
-# load_and_simulate('c3', 'asa')
-# load_and_simulate('c3b', 'asa')
-# df_final_frame = write_results(exp, exp_type, results)
 
-
-class ParameterEstimation(object):
-    """Parameter Estimation"""
-
-    def __init__(self, stochastic_simulation_model, bounds, data=None):
-        if (data is not None):
-            self.data = data
-
-        self.model = stochastic_simulation_model
-        self.bounds = bounds
-
-    def setDataFromFile(self, FILENAME, delimiter=",", headers=True):
-        """Allows the user to set the data from a File
-        This data is to be compared with the simulated data in the process of parameter estimation
-        
-        Args:
-            FILENAME: A Complete/relative readable Filename with proper permissions
-            delimiter: An Optional variable with comma (",") as default value. 
-                A delimiter with which the File is delimited by.
-                It can be Comma (",") , Tab ("\t") or anyother thing
-            headers: Another optional variable, with Boolean True as default value
-                If headers are not available in the File, it can be set to False
-        Returns:
-            None but sets class Variable data with the data provided
-        
-        .. sectionauthor:: Shaik Asifullah <s.asifullah7@gmail.com>
-        
-        
-        """
-        with open(FILENAME, 'r') as dest_f:
-            data_iter = csv.reader(dest_f,
-                                   delimiter=",",
-                                   quotechar='"')
-            self.data = [data for data in data_iter]
-        if (headers):
-            self.data = self.data[1:]
-
-        self.data = np.asarray(self.data, dtype=float)
-
-    def setCustomAttr(self, attr_dict):
-        self.attr_dict = attr_dict
-
-    def run(self, func=None, params=None):
-        """Allows the user to set the data from a File
-        This data is to be compared with the simulated data in the process of parameter estimation
-        
-        Args:
-            func: An Optional Variable with default value (None) which by default run differential evolution
-                which is from scipy function. Users can provide reference to their defined function as argument.
-            
-        Returns:
-            The Value of the parameter(s) which are estimated by the function provided.
-        
-        .. sectionauthor:: Shaik Asifullah <s.asifullah7@gmail.com>
-        
-        
-        """
-        if not params:
-            params = {}
-        self._parameter_names = list(self.bounds.keys())
-        self._parameter_bounds = list(self.bounds.values())
-        self._model_roadrunner = te.loada(self.model.model)
-        x_data = self.data[:, 0]
-
-        x_data = self.data[:, 0]
-        y_data = self.data[:, 1:]
-        arguments = (x_data, y_data)
-
-        if func is None:
-            result = differential_evolution(self._SSE, self._parameter_bounds, args=arguments, **params)
-            return (result.x)
-        else:
-            result = func(self._SSE, self._parameter_bounds, args=arguments)
-            return (result.x)
-
-    def _set_theta_values(self, theta):
-        """ Sets the Theta Value in the range of bounds provided to the Function.
-            Not intended to be called by user.
-            
-        Args:
-            theta: The Theta Value that is set for the function defined/provided
-            
-        Returns:
-            None but it sets the parameter(s) to the stochastic model provided
-        
-        .. sectionauthor:: Shaik Asifullah <s.asifullah7@gmail.com>
-        
-        
-        """
-        for theta_i, each_theta in enumerate(self._parameter_names):
-            # print(f"Set theta: {each_theta}: {theta[theta_i]}")
-            setattr(self._model_roadrunner, each_theta, theta[theta_i])
-
-    def _SSE(self, parameters, *data):
-        """ Runs a simuation of SumOfSquares that get parameters and data and compute the metric.
-            Not intended to be called by user.
-            
-        Args:
-            parameters: The tuple of theta values  whose output is compared against the data provided
-            data: The data provided by the user through FileName or manually 
-                  which is used to compare against the simulations
-            
-        Returns:
-            Sum of Squared Error
-        
-        .. sectionauthor:: Shaik Asifullah <s.asifullah7@gmail.com>
-        
-            
-        """
-        theta = parameters
-
-        x, y = data
-        sample_x, sample_y = data
-        self._set_theta_values(theta)
-
-        random.seed()
-        # it is now safe to use random.randint
-        # self._model.setSeed(random.randint(1000, 99999))
-
-        self._model_roadrunner.integrator.variable_step_size = self.model.variable_step_size
-        self._model_roadrunner.reset()
-        if hasattr(self, 'attr_dict'):
-            for att_key, att_val in self.attr_dict.items():
-                setattr(self._model_roadrunner, att_key, att_val)
-
-        simulated_data = self._model_roadrunner.simulate(self.model.from_time, self.model.to_time,
-                                                         self.model.step_points)
-        simulated_data = np.array(simulated_data)
-        simulated_x = simulated_data[:, 0]
-        simulated_y = simulated_data[:, 1:]
-
-        SEARCH_BEGIN_INDEX = 0
-        SSE_RESULT = 0
-
-        for simulated_i in range(len(simulated_y)):
-            y_i = simulated_y[simulated_i]
-            # yhat_i = sample_y[simulated_i]
-
-            x_i = simulated_x[simulated_i]
-            for search_i in range(SEARCH_BEGIN_INDEX + 1, len(sample_x)):
-                if (sample_x[search_i - 1] <= x_i < sample_x[search_i]):
-                    yhat_i = sample_y[search_i - 1]
-                    break
-                SEARCH_BEGIN_INDEX += 1
-
-            partial_result = 0
-            for sse_i in range(len(y_i)):
-                partial_result += (float(y_i[sse_i]) - float(yhat_i[sse_i])) ** 2
-            SSE_RESULT += partial_result
-
-        return SSE_RESULT ** 0.5
-
-
-def sim_for_fake_t(rr, time):
-    results = rr.simulate(0, time, points=2)
-    df_tmp = pd.DataFrame(results, columns=results.colnames)
-    df_tmp = df_tmp.append(df_tmp.tail(1))
-    df_tmp.iloc[1, 0] = time * 0.5
-    return df_tmp.reset_index(drop=True)
