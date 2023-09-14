@@ -45,31 +45,35 @@ S_LYS = "LYS"
 S_RATIO_CROSSLINKER_LYSINE = "linker/lys ratio"
 S_MOLECULAR_WEIGHT = 'MolecularWeight'
 S_NUM_LYS = 'NumLys'
+S_REACT_MONO_XL_SUM = "Mono_XL_Sum"
+S_REACT_XL_FRACTION = "XL_Fraction"
 
 # MISC
 S_NONE = "None"
 S_EXP = 'exp'
-S_PROT = 'protein'
+S_PROT = 'Protein'
 S_IMPUTED = 'isImputed'
 
 # MODEL STRINGS
-D_NAME = "name"
-D_TYPE = "type"
-D_ID = "id"
-D_LOCATION_ID = "location_id"
-D_PROTEIN_LIST = "protein_list"
-D_PROTEIN = "prot"
-D_CHAIN = "chain"
-D_PRECURSOR_LIST = "precursor_list"
-D_LOCATION_LIST = "location_list"
-D_POSITION_LIST = "pos_list"
-D_CONCENTRATION = 'conc'
-D_MIN_DIST = 'minimum_xl_dist'
-D_MAX_DIST = 'maximum_xl_dist'
-D_REACTIVITY_DATA_MONO = 'reactivity_dict_mono'
-D_REACTIVITY_DATA_XL = 'reactivity_dict_xl'
+S_NAME = "name"
+S_TYPE = "type"
+S_ID = "id"
+S_LOCATION_ID = "location_id"
+S_PROTEIN_LIST = "protein_list"
+S_PROTEIN = "prot"
+S_CHAIN = "chain"
+S_PRECURSOR_LIST = "precursor_list"
+S_LOCATION_LIST = "location_list"
+S_POSITION_LIST = "pos_list"
+S_CONCENTRATION = 'conc'
+S_MIN_DIST = 'minimum_xl_dist'
+S_MAX_DIST = 'maximum_xl_dist'
+S_REACTIVITY_DATA_MONO = 'reactivity_dict_mono'
+S_REACTIVITY_DATA_XL = 'reactivity_dict_xl'
 
-# PLOTS
+
+
+# PLOTS/SIM RESULTS
 S_EXP_NAME = 'UniProtID'
 S_SIM_NAME = 'SimName'
 S_UXID = "uxID"
@@ -90,6 +94,35 @@ S_NXL1 = 'nxl1'
 S_NXL2 = 'nxl2'
 S_NXL_SUM = 'nxl_sum'
 S_COND = 'cond'
+S_TIME = 'time'
+S_DISPLAY_NAME = 'display_name'
+S_RATIO_CROSSLINKER_LYSINE = "linker/lys ratio"
+S_VALUE_REF = S_VALUE + '_ref'
+S_VALUE_CHANGE = S_VALUE + '_change'
+S_VALUE_INC_ABS = S_VALUE + '_inc_abs'
+S_SPECIES = 'species'
+S_POS = 'pos'
+S_IS_LINKER = "is_linker"
+S_CONC_LINKER = "linker_conc"
+S_CONC_LINKER_INITIAL = "initial linker conc"
+S_REACTION_RATIO = "Reaction Ratio"
+S_IS_SIGNIFICANT = "Significant"
+S_SIGNI_MIN_VAL = S_IS_SIGNIFICANT + '_min_val_abs'
+S_SIGNI_MIN_INC = S_IS_SIGNIFICANT + '_min_inc_abs'
+S_SIGNI_MIN_LOG2 = S_IS_SIGNIFICANT + '_min_log2ratio'
+S_NON_SIGNI_REASON = 'reason_non_signi'
+S_POS1 = 'Pos1'
+S_POS2 = 'Pos2'
+S_PROT1 = 'Protein1'
+S_PROT2 = 'Protein2'
+S_CHAIN_ID = "Chain_ID"
+S_CHAIN_ID1 = "Chain_ID1"
+S_CHAIN_ID2 = "Chain_ID2"
+S_COUNT = 'count'
+
+# CHIMERAX COLORING
+S_HSL_COLOR = 'hsl_color'
+S_BASE_COLOR = 'base_color'
 
 # SUPP_EXP
 S_SUFFIX_REF = "_ref"
