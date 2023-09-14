@@ -42,67 +42,67 @@ args = parser.parse_args()
 class AllXLReactions(sbml_xl.AllXLReactionsImplicitDiffusionSimple):
 
     def add_lys(self):
-        df_react = self.params[const.D_REACTIVITY_DATA_MONO]
+        df_react = self.params[const.S_REACTIVITY_DATA_MONO]
         lys_list = []
         for prot, pdb_chain, pos, pka in zip(df_react[prot_lib.COL_UNIPROT_ID],
                                              df_react[prot_lib.COL_PDB_CHAIN_ID], df_react[prot_lib.COL_POS],
                                              df_react[prot_lib.COL_VALUE_NORMALIZED]):
             user_data_dict = sbml_xl.get_user_data_dict(s_type=const.S_LYS, s_pos=pos, s_prot=prot, s_chain=pdb_chain)
-            s = self.min_model.sbml_model.addSpecies(user_data_dict[const.D_ID], self.params[const.D_CONCENTRATION], )
-            s.setSpeciesType(user_data_dict[const.D_TYPE])
+            s = self.min_model.sbml_model.addSpecies(user_data_dict[const.S_ID], self.params[const.S_CONCENTRATION], )
+            s.setSpeciesType(user_data_dict[const.S_TYPE])
             s.UserData = user_data_dict
             lys_list.append(s)
         return lys_list
 
     def add_lys_params(self):
         lys_to_param_dict = {}
-        df_react = self.params[const.D_REACTIVITY_DATA_MONO]
+        df_react = self.params[const.S_REACTIVITY_DATA_MONO]
         for lys in self.species_lys:
             user_data_dict = sbml_xl.get_user_data_dict(
                 s_type=const.S_K_LYS, s_precursor_list=[lys]
             )
-            pos = user_data_dict[const.D_POSITION_LIST][0]
-            prot = user_data_dict[const.D_PROTEIN_LIST][0]
-            chain = user_data_dict[const.D_CHAIN]
+            pos = user_data_dict[const.S_POSITION_LIST][0]
+            prot = user_data_dict[const.S_PROTEIN_LIST][0]
+            chain = user_data_dict[const.S_CHAIN]
             val = df_react.loc[(df_react[prot_lib.COL_POS] == pos) & (df_react[prot_lib.COL_PDB_CHAIN_ID] == chain) & (
                         df_react[prot_lib.COL_UNIPROT_ID].str.fullmatch(prot)), prot_lib.COL_VALUE_NORMALIZED].iloc[0]
             p_klys = self.min_model.sbml_model.addParameter(
-                user_data_dict[const.D_ID],  # parameter itself
+                user_data_dict[const.S_ID],  # parameter itself
                 val,
                 # parameter value
             )  # type: tesbml.libsbml.Parameter
             p_klys.UserData = user_data_dict
-            lys_to_param_dict[user_data_dict[const.D_LOCATION_ID]] = p_klys
+            lys_to_param_dict[user_data_dict[const.S_LOCATION_ID]] = p_klys
         return lys_to_param_dict
 
     def add_xl_trans_params(self):
         unique_id_kon_dict = {}
         for lys in self.species_lys:
-            location_id_lys = lys.UserData[const.D_LOCATION_ID]
+            location_id_lys = lys.UserData[const.S_LOCATION_ID]
             for mono in self.react_mono.products:
-                location_id_mono = mono.UserData[const.D_LOCATION_ID]
+                location_id_mono = mono.UserData[const.S_LOCATION_ID]
                 if location_id_lys == location_id_mono:
                     continue
                 user_data_dict = sbml_xl.get_user_data_dict(
                     s_type=const.S_K_ON_XL, s_precursor_list=[lys, mono]
                 )
-                location_id = user_data_dict[const.D_LOCATION_ID]
+                location_id = user_data_dict[const.S_LOCATION_ID]
                 # skip already created crosslinks
                 if location_id in unique_id_kon_dict:
                     continue
-                pos_lys = lys.UserData[const.D_POSITION_LIST][0]
-                prot_lys = lys.UserData[const.D_PROTEIN_LIST][0]
-                chain_lys = lys.UserData[const.D_CHAIN]
-                pos_mono = mono.UserData[const.D_POSITION_LIST][0]
-                prot_mono = mono.UserData[const.D_PROTEIN_LIST][0]
-                chain_mono = mono.UserData[const.D_CHAIN]
-                react_df = self.params[const.D_REACTIVITY_DATA_XL]
+                pos_lys = lys.UserData[const.S_POSITION_LIST][0]
+                prot_lys = lys.UserData[const.S_PROTEIN_LIST][0]
+                chain_lys = lys.UserData[const.S_CHAIN]
+                pos_mono = mono.UserData[const.S_POSITION_LIST][0]
+                prot_mono = mono.UserData[const.S_PROTEIN_LIST][0]
+                chain_mono = mono.UserData[const.S_CHAIN]
+                react_df = self.params[const.S_REACTIVITY_DATA_XL]
                 xl_react = get_xl_reactivity_from_df(df_react=react_df, pos1=pos_lys, pos2=pos_mono, chain1=chain_lys,
                                                      chain2=chain_mono, prot1=prot_lys, prot2=prot_mono,
                                                      val_col=prot_lib.COL_VALUE_NORMALIZED)
                 if xl_react > 0:
                     p_kon_xl = self.min_model.sbml_model.addParameter(
-                        user_data_dict[const.D_ID],
+                        user_data_dict[const.S_ID],
                         xl_react,
                         units=const.S_UNIT_LITRE_PER_MOLE_PER_SECOND,
                     )
@@ -351,14 +351,14 @@ def main():
 
     min_model_xl = sbml_xl.MinimalModel(kinetic_params={'kh': 2.5e-5, 'koff': 1e9, 'kon': 1e7}, c_linker=xl_conc, mol_weight=mol_weight_prot, num_lys=num_lys)
     params_xl = {
-        const.D_REACTIVITY_DATA_MONO: df_lys_react_combined,
-        const.D_REACTIVITY_DATA_XL: df_xl_react_sasd,
-        const.D_CONCENTRATION: lys_conc,
+        const.S_REACTIVITY_DATA_MONO: df_lys_react_combined,
+        const.S_REACTIVITY_DATA_XL: df_xl_react_sasd,
+        const.S_CONCENTRATION: lys_conc,
     }
     min_model_mono = sbml_xl.MinimalModel(kinetic_params={'kh': 2.5e-5, 'koff': 1e9, 'kon': 1e7}, c_linker=xl_conc, mol_weight=mol_weight_prot, num_lys=num_lys)
     params_mono = {
-        const.D_REACTIVITY_DATA_MONO: df_lys_react_combined,
-        const.D_CONCENTRATION: lys_conc,
+        const.S_REACTIVITY_DATA_MONO: df_lys_react_combined,
+        const.S_CONCENTRATION: lys_conc,
     }
     all_reactions = AllXLReactions(min_model_xl, params_xl)
     mono_reactions = MonoReactionsOnly(min_model_mono, params_mono)
