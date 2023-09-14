@@ -12,45 +12,45 @@ Library to create kinetic models of crosslink reactions
 def get_user_data_dict(
         s_type, s_pos=None, s_prot=None, s_precursor_list=None, s_chain=None, sort_precursors=True
 ):
-    user_data_dict = {const.D_PRECURSOR_LIST: s_precursor_list, const.D_TYPE: s_type}
+    user_data_dict = {const.S_PRECURSOR_LIST: s_precursor_list, const.S_TYPE: s_type}
     if s_prot is not None:
-        user_data_dict[const.D_PROTEIN_LIST] = [s_prot]
+        user_data_dict[const.S_PROTEIN_LIST] = [s_prot]
     if s_pos and not s_precursor_list:
-        user_data_dict[const.D_POSITION_LIST] = [s_pos]
-        user_data_dict[const.D_CHAIN] = s_chain
-        user_data_dict[const.D_LOCATION_LIST] = [(str(s_prot), s_chain, s_pos)]
+        user_data_dict[const.S_POSITION_LIST] = [s_pos]
+        user_data_dict[const.S_CHAIN] = s_chain
+        user_data_dict[const.S_LOCATION_LIST] = [(str(s_prot), s_chain, s_pos)]
     elif s_precursor_list and not s_pos:
         for precursor in s_precursor_list:
-            user_data_dict.setdefault(const.D_LOCATION_LIST, []).extend(
-                precursor.UserData[const.D_LOCATION_LIST]
+            user_data_dict.setdefault(const.S_LOCATION_LIST, []).extend(
+                precursor.UserData[const.S_LOCATION_LIST]
             )
-            user_data_dict.setdefault(const.D_PROTEIN_LIST, []).extend(
-                precursor.UserData[const.D_PROTEIN_LIST]
+            user_data_dict.setdefault(const.S_PROTEIN_LIST, []).extend(
+                precursor.UserData[const.S_PROTEIN_LIST]
             )
-            user_data_dict.setdefault(const.D_POSITION_LIST, []).extend(
-                precursor.UserData[const.D_POSITION_LIST]
+            user_data_dict.setdefault(const.S_POSITION_LIST, []).extend(
+                precursor.UserData[const.S_POSITION_LIST]
             )
-            user_data_dict[const.D_CHAIN] = precursor.UserData[const.D_CHAIN]
+            user_data_dict[const.S_CHAIN] = precursor.UserData[const.S_CHAIN]
     else:
         print("WARNING: Invalid combination of arguments")
     if sort_precursors:
-        user_data_dict[const.D_LOCATION_LIST] = sorted(user_data_dict[const.D_LOCATION_LIST])
+        user_data_dict[const.S_LOCATION_LIST] = sorted(user_data_dict[const.S_LOCATION_LIST])
     s_loc_id = ""
-    for location in user_data_dict[const.D_LOCATION_LIST]:
+    for location in user_data_dict[const.S_LOCATION_LIST]:
         if location[0] != const.S_NONE:
             s_loc_id += f"{location[0]}_"  # protein
             s_loc_id += f"{location[1]}_"  # chain
         s_loc_id += f"{location[2]}_"  # sequence position
     s_loc_id = s_loc_id[:-1]
-    user_data_dict[const.D_LOCATION_ID] = s_loc_id
-    user_data_dict[const.D_ID] = f"{s_type}_{s_loc_id}"
+    user_data_dict[const.S_LOCATION_ID] = s_loc_id
+    user_data_dict[const.S_ID] = f"{s_type}_{s_loc_id}"
     return user_data_dict
 
 
 def get_location_id_dict(s_list: List[libsbml.Species]):
     loc_id_dict = {}
     for s in s_list:
-        loc_id_dict[s.UserData[const.D_LOCATION_ID]] = s
+        loc_id_dict[s.UserData[const.S_LOCATION_ID]] = s
     return loc_id_dict
 
 
@@ -117,14 +117,14 @@ class XLReaction(object):
 
     def _create_product(self, reactants) -> libsbml.Species:
         if self.reactants_loc_id_to_products_dict:
-            return self.reactants_loc_id_to_products_dict[reactants.UserData[const.D_LOCATION_ID]]
+            return self.reactants_loc_id_to_products_dict[reactants.UserData[const.S_LOCATION_ID]]
         else:
             product_type = self.reaction_string
             if isinstance(reactants, list):
                 user_data_dict = get_user_data_dict(s_type=self.reaction_string, s_precursor_list=reactants)
             else:
                 user_data_dict = get_user_data_dict(s_type=self.reaction_string, s_precursor_list=[reactants])
-            product_loc_id = user_data_dict[const.D_LOCATION_ID]
+            product_loc_id = user_data_dict[const.S_LOCATION_ID]
             product_name = f"{self.reaction_string}_{product_loc_id}"
             s = self.sbml_model.addSpecies(product_name, 0)
             s.UserData = user_data_dict
@@ -220,7 +220,7 @@ class XLReactionMono(XLReaction):
 
     def _get_param_forward(self, reactants):
         # the location id of a lysine is the key in the param_forward dict
-        return self.param_forward[reactants.UserData[const.D_LOCATION_ID]]
+        return self.param_forward[reactants.UserData[const.S_LOCATION_ID]]
 
     def _get_expr_forward(self, reactants, param_forward):
         return f"{param_forward.getId()}*{reactants.getId()}"
@@ -256,7 +256,7 @@ class XLReactionMonoImplicitDiffusion(XLReaction):
 
     def _get_param_forward(self, reactants):
         # the location id of a lysine is the key in the param_forward dict
-        return self.param_forward[reactants.UserData[const.D_LOCATION_ID]]
+        return self.param_forward[reactants.UserData[const.S_LOCATION_ID]]
 
     def __get_k_eff(self, param_forward):
         return f"(({param_forward.getId()}*{self.param_kon.getId()})/({param_forward.getId()}+{self.param_koff.getId()}))"
@@ -294,7 +294,7 @@ class XLReactionMonoImplicitDiffusionSimple(XLReaction):
 
     def _get_param_forward(self, reactants):
         # the location id of a lysine is the key in the param_forward dict
-        return self.param_forward[reactants.UserData[const.D_LOCATION_ID]]
+        return self.param_forward[reactants.UserData[const.S_LOCATION_ID]]
 
     def _get_expr_forward(self, reactants, param_forward):
         return f"{param_forward.getId()}*{self.crosslinker.getId()}*{reactants.getId()}"
@@ -367,7 +367,7 @@ class XLReactionXLTrans(XLReaction):
             self.reaction_string, s_precursor_list=reactants, sort_precursors=False
         )
         product_type = self.reaction_string
-        product_loc_id = user_data_dict[const.D_LOCATION_ID]
+        product_loc_id = user_data_dict[const.S_LOCATION_ID]
         product_name = f"{product_type}_{product_loc_id}"
         s = self.sbml_model.addSpecies(product_name, 0)
         s.UserData = user_data_dict
@@ -383,7 +383,7 @@ class XLReactionXLTrans(XLReaction):
 
     def _get_param_forward(self, reactants):
         user_data_dict = get_user_data_dict(self.reaction_string, s_precursor_list=reactants)
-        location_id = user_data_dict[const.D_LOCATION_ID]
+        location_id = user_data_dict[const.S_LOCATION_ID]
         if location_id in self.param_forward:
             self.num_reactive += 1
             return self.param_forward[location_id]
@@ -398,9 +398,9 @@ class XLReactionXLTrans(XLReaction):
     def _get_reactants(self):
         tuple_pair_list = []  # type: List[Tuple[libsbml.Species]]
         for react_1 in self.reactants:
-            id_1 = react_1.UserData[const.D_LOCATION_ID]
+            id_1 = react_1.UserData[const.S_LOCATION_ID]
             for react_2 in self.reactants_2:
-                id_2 = react_2.UserData[const.D_LOCATION_ID]
+                id_2 = react_2.UserData[const.S_LOCATION_ID]
                 if id_1 != id_2:
                     if self._get_param_forward([react_1, react_2]) != self.param_zero:
                         tuple_pair_list.append((react_1, react_2))
@@ -432,7 +432,7 @@ class XLReactionXL(XLReaction):
     def _create_product(self, reactants) -> libsbml.Species:
         product_type = self.reaction_string
         user_data_dict = get_user_data_dict(self.reaction_string, s_precursor_list=[reactants])
-        location_id = user_data_dict[const.D_LOCATION_ID]
+        location_id = user_data_dict[const.S_LOCATION_ID]
         if location_id in self.unique_id_prod_dict:
             return self.unique_id_prod_dict[location_id]
         product_name = f"{product_type}_{location_id}"
@@ -451,10 +451,10 @@ class XLReactionXL(XLReaction):
 
     def _get_param_forward(self, reactants):
         for p_lys in self.param_forward:
-            location_id_klys = p_lys.UserData[const.D_LOCATION_ID]
-            for precursor in reactants.UserData[const.D_PRECURSOR_LIST]:
+            location_id_klys = p_lys.UserData[const.S_LOCATION_ID]
+            for precursor in reactants.UserData[const.S_PRECURSOR_LIST]:
                 if precursor.getSpeciesType() == const.S_LYS:
-                    if location_id_klys == precursor.UserData[const.D_LOCATION_ID]:
+                    if location_id_klys == precursor.UserData[const.S_LOCATION_ID]:
                         return p_lys
         print("Warning: No matching klys found")
         return None
@@ -499,7 +499,7 @@ class XLReactionXLImplicitDiffusion(XLReactionXL):
     def _create_product(self, reactants) -> libsbml.Species:
         product_type = self.reaction_string
         user_data_dict = get_user_data_dict(self.reaction_string, s_precursor_list=reactants)
-        location_id = user_data_dict[const.D_LOCATION_ID]
+        location_id = user_data_dict[const.S_LOCATION_ID]
         if location_id in self.unique_id_prod_dict:
             return self.unique_id_prod_dict[location_id]
         product_name = f"{product_type}_{location_id}"
@@ -523,7 +523,7 @@ class XLReactionXLImplicitDiffusion(XLReactionXL):
 
     def _get_param_forward(self, reactants):
         user_data_dict = get_user_data_dict(self.reaction_string, s_precursor_list=reactants)
-        location_id = user_data_dict[const.D_LOCATION_ID]
+        location_id = user_data_dict[const.S_LOCATION_ID]
         if location_id in self.param_forward:
             self.num_reactive += 1
             return self.param_forward[location_id]
@@ -536,9 +536,9 @@ class XLReactionXLImplicitDiffusion(XLReactionXL):
     def _get_reactants(self):
         tuple_pair_list = []  # type: List[Tuple[libsbml.Species]]
         for react_1 in self.reactants:
-            id_1 = react_1.UserData[const.D_LOCATION_ID]
+            id_1 = react_1.UserData[const.S_LOCATION_ID]
             for react_2 in self.reactants_2:
-                id_2 = react_2.UserData[const.D_LOCATION_ID]
+                id_2 = react_2.UserData[const.S_LOCATION_ID]
                 if id_1 != id_2:
                     if self._get_param_forward([react_1, react_2]) != self.param_zero:
                         tuple_pair_list.append((react_1, react_2))
@@ -557,10 +557,10 @@ class XLReactionXLImplicitDiffusion(XLReactionXL):
 
     def __get_k_lys(self, reactants):
         for p_lys in self.param_klys:
-            location_id_klys = p_lys.UserData[const.D_LOCATION_ID]
+            location_id_klys = p_lys.UserData[const.S_LOCATION_ID]
             for species in reactants:
                 if species.getSpeciesType() == const.S_LYS:
-                    if location_id_klys == species.UserData[const.D_LOCATION_ID]:
+                    if location_id_klys == species.UserData[const.S_LOCATION_ID]:
                         return p_lys
         print("Warning: No matching klys found")
         return None
@@ -602,7 +602,7 @@ class XLReactionXLImplicitDiffusionSimple(XLReactionXL):
     def _create_product(self, reactants) -> libsbml.Species:
         product_type = self.reaction_string
         user_data_dict = get_user_data_dict(self.reaction_string, s_precursor_list=reactants)
-        location_id = user_data_dict[const.D_LOCATION_ID]
+        location_id = user_data_dict[const.S_LOCATION_ID]
         if location_id in self.unique_id_prod_dict:
             return self.unique_id_prod_dict[location_id]
         product_name = f"{product_type}_{location_id}"
@@ -626,7 +626,7 @@ class XLReactionXLImplicitDiffusionSimple(XLReactionXL):
 
     def _get_param_forward(self, reactants):
         user_data_dict = get_user_data_dict(self.reaction_string, s_precursor_list=reactants)
-        location_id = user_data_dict[const.D_LOCATION_ID]
+        location_id = user_data_dict[const.S_LOCATION_ID]
         if location_id in self.param_forward:
             self.num_reactive += 1
             return self.param_forward[location_id]
@@ -639,9 +639,9 @@ class XLReactionXLImplicitDiffusionSimple(XLReactionXL):
     def _get_reactants(self):
         tuple_pair_list = []  # type: List[Tuple[libsbml.Species]]
         for react_1 in self.reactants:
-            id_1 = react_1.UserData[const.D_LOCATION_ID]
+            id_1 = react_1.UserData[const.S_LOCATION_ID]
             for react_2 in self.reactants_2:
-                id_2 = react_2.UserData[const.D_LOCATION_ID]
+                id_2 = react_2.UserData[const.S_LOCATION_ID]
                 if id_1 != id_2:
                     if self._get_param_forward([react_1, react_2]) != self.param_zero:
                         tuple_pair_list.append((react_1, react_2))
@@ -660,10 +660,10 @@ class XLReactionXLImplicitDiffusionSimple(XLReactionXL):
 
     def __get_k_lys(self, reactants):
         for p_lys in self.param_klys:
-            location_id_klys = p_lys.UserData[const.D_LOCATION_ID]
+            location_id_klys = p_lys.UserData[const.S_LOCATION_ID]
             for species in reactants:
                 if species.getSpeciesType() == const.S_LYS:
-                    if location_id_klys == species.UserData[const.D_LOCATION_ID]:
+                    if location_id_klys == species.UserData[const.S_LOCATION_ID]:
                         return p_lys
         print("Warning: No matching klys found")
         return None
@@ -878,7 +878,7 @@ class AllXLReactions(object):
         self.react_mono_hydro = self.create_mono_hydro()
         self.mono_hydro_trans_prod_dict = {}
         for prod_mono_hydro in self.react_mono_hydro.products:
-            loc_id = prod_mono_hydro.UserData[const.D_LOCATION_ID]
+            loc_id = prod_mono_hydro.UserData[const.S_LOCATION_ID]
             self.mono_hydro_trans_prod_dict[loc_id] = prod_mono_hydro
         self.react_mono_hydro_alt = self.create_mono_hydro_alt()
         self.xl_trans_dict = self.add_xl_trans_params()
@@ -997,7 +997,7 @@ class AllXLReactionsImplicitDiffusion(AllXLReactions):
         self.react_mono_hydro = self.create_mono_hydro()
         self.mono_hydro_trans_prod_dict = {}
         for prod_mono_hydro in self.react_mono_hydro.products:
-            loc_id = prod_mono_hydro.UserData[const.D_LOCATION_ID]
+            loc_id = prod_mono_hydro.UserData[const.S_LOCATION_ID]
             self.mono_hydro_trans_prod_dict[loc_id] = prod_mono_hydro
         self.react_mono_hydro_alt = self.create_mono_hydro_alt()
         self.xl_trans_dict = self.add_xl_trans_params()
@@ -1067,7 +1067,7 @@ class AllXLReactionsImplicitDiffusionSimple(AllXLReactionsImplicitDiffusion):
         self.react_mono_hydro = self.create_mono_hydro()
         self.mono_hydro_trans_prod_dict = {}
         for prod_mono_hydro in self.react_mono_hydro.products:
-            loc_id = prod_mono_hydro.UserData[const.D_LOCATION_ID]
+            loc_id = prod_mono_hydro.UserData[const.S_LOCATION_ID]
             self.mono_hydro_trans_prod_dict[loc_id] = prod_mono_hydro
         self.react_mono_hydro_alt = self.create_mono_hydro_alt()
         self.xl_trans_dict = self.add_xl_trans_params()
