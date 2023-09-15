@@ -133,7 +133,6 @@ class MonoReactionsOnly(AllXLReactions):
         return {}
 
 
-
 def get_xl_reactivity_from_df(df_react, pos1, pos2, chain1, chain2, prot1, prot2, val_col):
     if pos1 != pos2:
 
@@ -375,7 +374,7 @@ def main():
     with open(outname_mono_only, "w") as f:
         f.write(min_model_mono.sbml_model.toSBML())
     print(f"Write mono-only model xml to {outname_mono_only}")
-    outname_params =  args.outname_model.replace(".xml", "_params.csv")
+    outname_params = args.outname_model.replace(".xml", "_params.csv")
     min_model_xl.to_df_params().to_csv(outname_params, index=False)
     print(f"Write model params to {outname_params}")
 
