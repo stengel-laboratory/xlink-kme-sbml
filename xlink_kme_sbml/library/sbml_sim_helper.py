@@ -650,6 +650,12 @@ def filter_species_min_val(df, val_col, min_val=0.05):
 
 
 def get_chimerax_xl_color_script(df, pdb_id, supp_pos=None, supp_chain=None):
+    def _color_and_style_residues(chain_id, pos, color_params):
+        out_lines = []
+        out_lines.append(f'run(session, "color  #1/{chain_id}:{pos} hsl{color_params}")')
+        out_lines.append(f'run(session, "color  #1/{chain_id}:{pos} hsl{color_params}")')
+        return out_lines
+
     df[[const.S_POS1, const.S_POS2]] = df[[const.S_POS1, const.S_POS2]].fillna(0)
     df[[const.S_POS1, const.S_POS2]] = df[[const.S_POS1, const.S_POS2]].astype(int)
     out_list = ['from chimerax.core.commands import run',
@@ -658,7 +664,14 @@ def get_chimerax_xl_color_script(df, pdb_id, supp_pos=None, supp_chain=None):
                 f'run(session, "open {pdb_id}")',
                 # 'run(session, "show #1:lys atom")', #show side chains for lysines
                 'run(session, "color #1:lys hsl(100, 0.5, 0.5)")',  # lightgreen for lysines
-                'run(session, "distance style decimalPlaces 1")']
+                'run(session, "distance style decimalPlaces 1")',
+                'run(session, "distance style dashes 0")',
+                'run(session, "distance style radius 0.5")',
+                'run(session, "style #1:lys@ca sphere")',
+                'run(session, "hide #1:lys@ca cartoon")',
+                'run(session, "show #1:lys@ca atom")',
+                'run(session, "size atomRadius 2")',
+                ]
 
     if supp_pos:
         out_list.append(
@@ -666,11 +679,12 @@ def get_chimerax_xl_color_script(df, pdb_id, supp_pos=None, supp_chain=None):
 
     for row in df[df[const.S_TYPE] == const.S_REACT_MONO_SUM].itertuples(index=False):
         if supp_pos != getattr(row, const.S_POS1):
-            out_list.append((
-                f'run(session, "color  #1/{getattr(row, const.S_CHAIN_ID1)}:{getattr(row, const.S_POS1)} hsl{getattr(row, const.S_HSL_COLOR)}")'))
+            out_list.append(
+                f'run(session, "color  #1/{getattr(row, const.S_CHAIN_ID1)}:{getattr(row, const.S_POS1)} hsl{getattr(row, const.S_HSL_COLOR)}")'
+            )
     for row in df[df[const.S_TYPE] == const.S_REACT_XL].itertuples(index=False):
-        out_list.append((
-            f'run(session, "distance #1/{getattr(row, const.S_CHAIN_ID1)}:{getattr(row, const.S_POS1)}@CA #1/{getattr(row, const.S_CHAIN_ID2)}:{getattr(row, const.S_POS2)}@CA color hsl{getattr(row, const.S_HSL_COLOR)}")'))
+        out_list.append(
+            f'run(session, "distance #1/{getattr(row, const.S_CHAIN_ID1)}:{getattr(row, const.S_POS1)}@CA #1/{getattr(row, const.S_CHAIN_ID2)}:{getattr(row, const.S_POS2)}@CA color hsl{getattr(row, const.S_HSL_COLOR)}")')
     out_list = add_newline_to_outlist(out_list)
     return out_list
 
@@ -678,7 +692,7 @@ def get_chimerax_xl_color_script(df, pdb_id, supp_pos=None, supp_chain=None):
 def get_chimerax_supp_df(df_rr, cond, val_col, min_val_abs=0, min_inc_abs=0, min_log2ratio_abs=0):
     df_rr = df_rr[df_rr['cond'] == cond]
     df_rr = get_rr_significance_columns(df_rr, min_val_abs=min_val_abs, min_inc_abs=min_inc_abs,
-                                               min_log2ratio_abs=min_log2ratio_abs)
+                                        min_log2ratio_abs=min_log2ratio_abs)
     df_rr = df_rr[df_rr[const.S_IS_SIGNIFICANT]]
     df_rr = get_continous_color_scale(df_rr, val_col=val_col, different_color_scale_mono_xl=True)
     # df_rr = df_rr.dropna(subset=[str_pos1, str_pos2])
