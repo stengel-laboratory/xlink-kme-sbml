@@ -48,6 +48,8 @@ def get_xl_fraction_plot(df_xl_fraction, species, species_title, domain=None):
         color=alt.Color(const.S_COND).title("Condition"),
     )
     c += c.mark_point()
+    c = prepare_for_print(c)
+    c = c.properties(width=200)
     return c
 
 
@@ -206,7 +208,7 @@ def get_corr_plot(df, x, y, group_by, species=None, exp=None, facet=None, min_va
         c += c.mark_errorbar(extent='ci', opacity=0.5)
     if df[const.S_TYPE].nunique() > 1:
         c = c.facet(
-            column=alt.Column(const.S_DISPLAY_NAME + ':N').title("Species").header(labelFontSize=12, titleFontSize=14)
+            column=alt.Column(const.S_DISPLAY_NAME + ':N').title("Species").header(labelFontSize=12, titleFontSize=14).sort("descending")
         )
     c = c.resolve_scale(
         y='independent',
@@ -218,8 +220,8 @@ def get_corr_plot(df, x, y, group_by, species=None, exp=None, facet=None, min_va
 
 
 def update_display_name_species(c, target_str=const.S_TYPE):
-    d = {const.S_REACT_MONO_SUM: const.S_REACT_DISPLAY_MONO, const.S_REACT_XL: const.S_REACT_DISPLAY_XL,
-         const.S_REACT_MONO_HYDRO: const.S_REACT_DISPLAY_MONO}
+    d = {const.S_REACT_MONO_SUM: const.S_REACT_DISPLAY_MONO,
+         const.S_REACT_MONO_HYDRO: const.S_REACT_DISPLAY_MONO, const.S_REACT_XL: const.S_REACT_DISPLAY_XL}
     c = c.transform_calculate(
         display_name=f"{d}[datum.{target_str}]",
     )
@@ -395,7 +397,7 @@ def get_explore_chart(df, var, ref_val=None, share_y_axis=False, metric='mean', 
         x=alt.X(var, scale=alt.Scale(base=10, type='log'), axis=alt.Axis(format=f"{x_axis_format}"),
                 title=x_axis_title),
         # title=f'{str_species_crosslinker} Concentration/M'),
-        y=alt.Y(f'{metric}', axis=alt.Axis(title=label_val)),
+        y=alt.Y(f'{metric}', axis=alt.Axis(title=label_val), scale=alt.Scale(domainMin=0)),
         # y=alt.Y(f'{metric}({str_value})', axis=alt.Axis(title=f'{metric}')),
         color=alt.Color(f'{const.S_EXP}:N').title("Protein").sort(helper.get_sorted_cats_list(df_mean[const.S_EXP])),
     )
@@ -426,7 +428,7 @@ def get_explore_chart(df, var, ref_val=None, share_y_axis=False, metric='mean', 
         c += c_rule
 
     c = c.facet(
-        column=alt.Column(const.S_DISPLAY_NAME + ":N", title=None, header=alt.Header(labelFontSize=14)),
+        column=alt.Column(const.S_DISPLAY_NAME + ":N", title=None, header=alt.Header(labelFontSize=14)).sort("descending"),
         row=row
     ).resolve_scale(y=y_axis)
     c = prepare_for_print(c)
@@ -488,10 +490,10 @@ def get_explore_chart_2d(df, x, y, min_val=0, z=None, metric='mean', log_x=True,
     if not legend_title:
         legend_title = metric
 
-    c = alt.Chart(df_mean).mark_circle(opacity=1).encode(
+    c = alt.Chart(df_mean).mark_square(opacity=1.0, size=75).encode(
         x=ax_x,
         y=ax_y,
-        color=alt.Color(metric).legend(title=legend_title),
+        color=alt.Color(metric).legend(title=legend_title).scale(scheme='spectral'),
         tooltip=[x, y, metric]
     )
     c += c.mark_circle()  # stupid hack to combine the rule_chart (i.e. y or x ref) with the original chart and then be able to facet
@@ -505,12 +507,12 @@ def get_explore_chart_2d(df, x, y, min_val=0, z=None, metric='mean', log_x=True,
 
     if z is not None:
         c = c.facet(
-            column=alt.Column(const.S_DISPLAY_NAME + ':N', title=None, header=alt.Header(labelFontSize=14)),
+            column=alt.Column(const.S_DISPLAY_NAME + ':N').title(None).header(labelFontSize=14).sort("descending"),
             row=f'{z}:O'
         )
     else:
         c = c.facet(
-            column=alt.Column(const.S_DISPLAY_NAME + ':N', title=None, header=alt.Header(labelFontSize=14)),
+            column=alt.Column(const.S_DISPLAY_NAME + ':N').title(None).header(labelFontSize=14).sort("descending"),
         )
     c = c.resolve_scale(
         color='independent'
@@ -526,7 +528,7 @@ def get_single_supp_plot(df, var_col, val_col):
     c = alt.Chart(df).mark_bar().encode(
         y=alt.Y(val_col),
         x=alt.X(var_col).title(""),
-        color=alt.Color(const.S_DISPLAY_NAME + ':N').title("Species"),
+        color=alt.Color(const.S_DISPLAY_NAME + ':N').title("Species").sort("descending"),
     )
     c = c.facet(
         column=alt.Column(val_col + '_sign').title("").header(labelFontSize=12, titleFontSize=14)
