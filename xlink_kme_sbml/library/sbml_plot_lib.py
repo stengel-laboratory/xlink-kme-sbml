@@ -11,7 +11,8 @@ Library of classes to visualize kinetic crosslink simulations
 """
 
 
-def get_signi_plot_rr(df, min_val_abs=0, min_inc_abs=0, min_log2ratio_abs=0, exclude_imputed=False, y_label=None):
+def get_signi_plot_rr(df, min_val_abs=0, min_inc_abs=0, min_log2ratio_abs=0, exclude_imputed=False, y_label=None,
+                      plot_title='Lysine Suppression'):
     if not y_label:
         y_label = const.S_VAR
     df = helper.get_rr_significance_columns(df, min_val_abs=min_val_abs, min_inc_abs=min_inc_abs,
@@ -28,7 +29,7 @@ def get_signi_plot_rr(df, min_val_abs=0, min_inc_abs=0, min_log2ratio_abs=0, exc
         text=alt.Text(f'sum({const.S_IS_SIGNIFICANT})'),
     )
     c = base + text
-    c = c.properties(title="Suppression Experiment")
+    c = c.properties(title=plot_title)
     c = c.configure_title(orient='top', anchor='middle', fontSize=14)
     c = prepare_for_print(c)
     # c = c.resolve_scale(
@@ -208,7 +209,8 @@ def get_corr_plot(df, x, y, group_by, species=None, exp=None, facet=None, min_va
         c += c.mark_errorbar(extent='ci', opacity=0.5)
     if df[const.S_TYPE].nunique() > 1:
         c = c.facet(
-            column=alt.Column(const.S_DISPLAY_NAME + ':N').title("Species").header(labelFontSize=12, titleFontSize=14).sort("descending")
+            column=alt.Column(const.S_DISPLAY_NAME + ':N').title("Species").header(labelFontSize=12,
+                                                                                   titleFontSize=14).sort("descending")
         )
     c = c.resolve_scale(
         y='independent',
@@ -428,7 +430,8 @@ def get_explore_chart(df, var, ref_val=None, share_y_axis=False, metric='mean', 
         c += c_rule
 
     c = c.facet(
-        column=alt.Column(const.S_DISPLAY_NAME + ":N", title=None, header=alt.Header(labelFontSize=14)).sort("descending"),
+        column=alt.Column(const.S_DISPLAY_NAME + ":N", title=None, header=alt.Header(labelFontSize=14)).sort(
+            "descending"),
         row=row
     ).resolve_scale(y=y_axis)
     c = prepare_for_print(c)

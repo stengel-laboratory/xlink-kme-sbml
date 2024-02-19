@@ -601,12 +601,12 @@ def normalize_vals(val_list, target_lower=0.0, target_upper=1.0):
 def get_continous_color_scale(df, val_col, different_color_scale_mono_xl=False):
     group_by_list = [val_col + "_sign"]
     df[val_col + "_sign"] = "=="
-    df[const.S_BASE_COLOR] = 0
+    df[const.S_BASE_COLOR] = 120 # hsl green
     if (df[val_col] < 0).any():
         df.loc[df[val_col] > 0, val_col + "_sign"] = "+"
         # df.loc[df[val_col] > 0, cf.str_base_color] = 0
         df.loc[df[val_col] < 0, val_col + "_sign"] = "-"
-        df.loc[df[val_col] < 0, const.S_BASE_COLOR] = 240
+        df.loc[df[val_col] < 0, const.S_BASE_COLOR] = 0 # hsl red
     col_val_norm = val_col + '_norm'
     if different_color_scale_mono_xl:
         group_by_list.append(const.S_TYPE)
@@ -663,7 +663,7 @@ def get_chimerax_xl_color_script(df, pdb_id, supp_pos=None, supp_chain=None):
                 'session.logger.status("Hello Hello, someone out there???")',
                 f'run(session, "open {pdb_id}")',
                 # 'run(session, "show #1:lys atom")', #show side chains for lysines
-                'run(session, "color #1:lys hsl(100, 0.5, 0.5)")',  # lightgreen for lysines
+                'run(session, "color #1:lys hsl(210, 0.5, 0.5)")',  # lightblue for lysines
                 'run(session, "distance style decimalPlaces 1")',
                 'run(session, "distance style dashes 0")',
                 'run(session, "distance style radius 0.5")',
