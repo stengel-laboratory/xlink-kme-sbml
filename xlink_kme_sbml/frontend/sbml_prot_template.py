@@ -28,7 +28,7 @@ parser.add_argument('input', action="store", default=None, type=str, nargs='+',
                          "Model params as obtained by a previous run can be used as input if they match the system. ")
 parser.add_argument('-c', '--crosslinker_conc', default=-1, type=int,
                     help="Crosslinker concentration. If none is given (i.e. the default of -1) then "
-                         "equimolar concentration with respect to the lysines is used.")
+                         "half-equimolar concentration with respect to the lysines is used.")
 parser.add_argument('-om', '--outname_model', type=str,
                     default='model_sbml.xml', help="Name of the sbml model output file")
 parser.add_argument('-scmin', '--sasd_cutoff_min', type=int,
@@ -166,22 +166,25 @@ def get_random_reactivity(scale=0.1):
 # while isolated NHS/lysine reactions can go up to 10 1/M*s
 # see: https://onlinelibrary.wiley.com/doi/abs/10.1111/j.1399-3011.1987.tb03319.x
 # and http://www.sciencedirect.com/science/article/pii/S0003269717301112
-def get_lys_reactivity_in_range(df, val_col, min_range=1e-3, max_range=1):
+def get_lys_reactivity_in_range(df, val_col, min_range=1e-3, max_range=1, ph=None):
     """
     Given a dataframe with some experimental data like the SASD this function will first normalize in [0, 1]
-    and then scale to [min_range, max_range]. A lysine position list is used to find lysines missing from the
-    experimental data and assign a default for them. The default value is computed using the minimal normalized &
-    scaled value multiplied by the default_value_scale parameter.
+    and then scale to [min_range, max_range]. 
 
     :param df: dataframe containing at least lysine positions and a column with an experimental measurement
     :param val_col: name of the column containing the experimental measurement
     :param min_range: the minimal value of the scaled range
     :param max_range: the maximal value of the scaled range
+    :param ph: if given, adjust lysine reactivites by pH
     """
+    value_list = df[val_col].to_numpy()
+    # optionally get ph scale factors
+    if ph is not None:
+        value_list = get_ph_scale_factor(pka=value_list, ph=ph)
     # normalize between 0 and 1
-    min_val = df[val_col].min()
-    range_val = df[val_col].max() - min_val
-    df[prot_lib.COL_VALUE_NORMALIZED] = (df[val_col] - min_val) / range_val
+    min_val = value_list.min()
+    range_val = value_list.max() - min_val
+    df[prot_lib.COL_VALUE_NORMALIZED] = (value_list - min_val) / range_val
     # scale between min and max range
     range_norm = max_range - min_range
     df[prot_lib.COL_VALUE_NORMALIZED] = df[prot_lib.COL_VALUE_NORMALIZED] * range_norm + min_range
@@ -189,7 +192,12 @@ def get_lys_reactivity_in_range(df, val_col, min_range=1e-3, max_range=1):
     # df = _assign_missing_lysine_reactivies(df, lys_pos_list=lys_pos_list, default_value_scale=default_value_scale)
     return df
 
+# uses the Henderson–Hasselbalch equation to approximate a pH dependent scaling factor for lysines
+def get_ph_scale_factor(pka, ph):
+    return (1/(1 + 10**(pka - ph)))
 
+
+# not currently used; missing lysines in the pdb file are ignored
 def _assign_missing_lysine_reactivies(df, lys_pos_list, default_value_scale):
     # default value for lysines not in dataframe
     reactivity_default = df[prot_lib.COL_VALUE_NORMALIZED].min() * default_value_scale
@@ -257,7 +265,7 @@ def get_pos_value_dict(lys_pos_list, df, value_name):
     return val_dict
 
 
-def get_lys_reactivity_df(chain_to_uni_id_dict=None, df_sasa=None, df_pka=None):
+def get_lys_reactivity_df(chain_to_uni_id_dict=None, df_sasa=None, df_pka=None, ph=None):
     df_lsy_react_sasa = None
     df_lsy_react_pka = None
     df_lys_react_combined = None
@@ -268,7 +276,8 @@ def get_lys_reactivity_df(chain_to_uni_id_dict=None, df_sasa=None, df_pka=None):
 
     if df_pka is not None:
         df_lsy_react_pka = get_lys_reactivity_in_range(df=df_pka,
-                                                       val_col=prot_lib.COL_PKA)
+                                                       val_col=prot_lib.COL_PKA,
+                                                       ph=ph)
 
     if df_lsy_react_sasa is not None or df_lsy_react_pka is not None:
         df_lys_react_combined = pd.concat([df_lsy_react_sasa, df_lsy_react_pka],
@@ -310,6 +319,7 @@ def main():
     df_sasd = None
     df_sasa = None
     df_pka = None
+    ph = 7
     # fasta_records = prot_lib.get_fasta_records(inp_dict[prot_lib.COL_FASTA_FILE])
     mol_weight_prot = prot_lib.get_pdb_mol_weight(inp_dict[prot_lib.COL_PDB_FILE])
     print(f"Scaling concentration by molecular weight: {mol_weight_prot}")
@@ -327,7 +337,7 @@ def main():
         print(f"Removed {len_before-len_after} of {len_before} crosslinks,"
               f" leaving {len_after} crosslinks above the cutoff distance of {args.sasd_cutoff_min} and below "
               f"{args.sasd_cutoff_max}")
-    df_lys_react_combined = get_lys_reactivity_df(chain_to_uni_id_dict=pdb_chain_to_uni_id_dict, df_pka=df_pka, df_sasa=df_sasa)
+    df_lys_react_combined = get_lys_reactivity_df(chain_to_uni_id_dict=pdb_chain_to_uni_id_dict, df_pka=df_pka, df_sasa=df_sasa, ph=ph)
     df_lys_react_combined = df_lys_react_combined[df_lys_react_combined[prot_lib.COL_POS] > -1].reset_index(drop=True) # some pdbs contain negative sequence numbers; drop them
     num_lys = len(df_lys_react_combined)
     if df_sasd is not None:
@@ -344,17 +354,22 @@ def main():
     # as tellurium wants concentration in mole/liter we divide 1 g/L by the molecular weight M (g/mole)
     xl_conc /= mol_weight_prot # set linker conc to 0,5 g/L * lysine number
     lys_conc = 1 / mol_weight_prot # set prot conc to 1 g/L
-
+    
+    # uncomment for constant molecular concentration instead of constanst mass concentration
     # lys_conc = 5.5e-6
     # xl_conc = num_lys*lys_conc/2
 
-    min_model_xl = sbml_xl.MinimalModel(kinetic_params={'kh': 2.5e-5, 'koff': 1e9, 'kon': 1e7}, c_linker=xl_conc, mol_weight=mol_weight_prot, num_lys=num_lys)
+    # optionally adjust hydrolysis by pH
+    # since our value already orients itself at literature values around pH 7, we leave it fixed
+    kh = 2.5e-5
+    # kh *= get_ph_scale_factor(pka=6, ph=7) # uncomment this line to scale hydrolysis by pH using the Henderson-Hasselbalch equation; a reasonable pKa for NHS is ~6 (D. E. Ames and T. F. Grey, The synthesis of some Nhydroxyimides, J. Chem. Soc., 1955, 631–636.); however, some further work is necessary for direct application to hydrolysis and it may make more sense to find reasonable literature values instead
+    min_model_xl = sbml_xl.MinimalModel(kinetic_params={const.S_K_HYDROLYSIS: kh, const.S_K_OFF: 1e9, const.S_K_ON: 1e7}, c_linker=xl_conc, mol_weight=mol_weight_prot, num_lys=num_lys, ph=ph)
     params_xl = {
         const.S_REACTIVITY_DATA_MONO: df_lys_react_combined,
         const.S_REACTIVITY_DATA_XL: df_xl_react_sasd,
         const.S_CONCENTRATION: lys_conc,
     }
-    min_model_mono = sbml_xl.MinimalModel(kinetic_params={'kh': 2.5e-5, 'koff': 1e9, 'kon': 1e7}, c_linker=xl_conc, mol_weight=mol_weight_prot, num_lys=num_lys)
+    min_model_mono = sbml_xl.MinimalModel(kinetic_params={const.S_K_HYDROLYSIS: kh, const.S_K_OFF: 1e9, const.S_K_ON: 1e7}, c_linker=xl_conc, mol_weight=mol_weight_prot, num_lys=num_lys, ph=ph)
     params_mono = {
         const.S_REACTIVITY_DATA_MONO: df_lys_react_combined,
         const.S_CONCENTRATION: lys_conc,

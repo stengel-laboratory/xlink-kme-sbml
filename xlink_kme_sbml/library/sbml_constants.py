@@ -52,6 +52,7 @@ S_REACT_XL_FRACTION = "XL_Fraction"
 S_NONE = "None"
 S_EXP = 'exp'
 S_PROT = 'Protein'
+S_PH = 'pH'
 S_IMPUTED = 'isImputed'
 
 # MODEL STRINGS

@@ -685,6 +685,7 @@ class MinimalModel(object):
             c_linker: float = 1,
             mol_weight: float = None,
             num_lys: int = None,
+            ph: int = None,
     ):
         self.sbml_model = ssbml.SbmlModel()
         self.c_linker = c_linker
@@ -702,6 +703,8 @@ class MinimalModel(object):
             self.sbml_model.addParameter(const.S_MOLECULAR_WEIGHT, val=mol_weight)
         if num_lys:
             self.sbml_model.addParameter(const.S_NUM_LYS, val=num_lys)
+        if ph:
+            self.sbml_model.addParameter(const.S_PH, val=ph)
         # self.sbml_model.getCompartment('c1').setUnits('dimensionless')
 
     def to_df_params(self):
