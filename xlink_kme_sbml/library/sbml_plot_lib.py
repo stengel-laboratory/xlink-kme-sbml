@@ -11,8 +11,8 @@ Library of classes to visualize kinetic crosslink simulations
 """
 
 
-def get_signi_plot_rr(df, min_val_abs=0, min_inc_abs=0, min_log2ratio_abs=0, exclude_imputed=False, y_label=None,
-                      plot_title='Lysine Suppression'):
+def get_signi_plot_rr(df, min_val_abs=0, min_inc_abs=0, min_log2ratio_abs=0, exclude_imputed=False, y_label=None, x_label=None,
+                      plot_title=None):
     if not y_label:
         y_label = const.S_VAR
     df = helper.get_rr_significance_columns(df, min_val_abs=min_val_abs, min_inc_abs=min_inc_abs,
@@ -20,16 +20,19 @@ def get_signi_plot_rr(df, min_val_abs=0, min_inc_abs=0, min_log2ratio_abs=0, exc
     df = df[df[const.S_IS_SIGNIFICANT]]
     if exclude_imputed:
         df = df[~df[const.S_IMPUTED]]
+    # remove the suppression string
+    df[const.S_COND] = df[const.S_COND].str.replace("S: ", "")
     base = alt.Chart(df).mark_bar().encode(
         y=alt.Y(f'count({const.S_VAR})').title(y_label),
         x=alt.X(const.S_COND,
-                sort=alt.EncodingSortField(field=const.S_IS_SIGNIFICANT, op="sum", order='descending')).title(""),
-    )
+                sort=alt.EncodingSortField(field=const.S_IS_SIGNIFICANT, op="sum", order='descending')).title(x_label),
+        )
     text = base.mark_text(dx=0, dy=-5, color='black', size=10).encode(
         text=alt.Text(f'sum({const.S_IS_SIGNIFICANT})'),
     )
     c = base + text
-    c = c.properties(title=plot_title)
+    if plot_title:
+        c = c.properties(title=plot_title)
     c = c.configure_title(orient='top', anchor='middle', fontSize=14)
     c = prepare_for_print(c)
     # c = c.resolve_scale(
@@ -530,7 +533,7 @@ def get_explore_chart_2d(df, x, y, min_val=0, z=None, metric='mean', log_x=True,
 def get_single_supp_plot(df, var_col, val_col):
     c = alt.Chart(df).mark_bar().encode(
         y=alt.Y(val_col),
-        x=alt.X(var_col).title(""),
+        x=alt.X(var_col).title(["Position"]), #, df['cond'].iloc[0].replace("S", "Suppression at")]),
         color=alt.Color(const.S_DISPLAY_NAME + ':N').title("Species").sort("descending"),
     )
     c = c.facet(
@@ -539,7 +542,7 @@ def get_single_supp_plot(df, var_col, val_col):
         x='independent',
         y='independent'
     )
-    c = c.properties(title=df['cond'].iloc[0].replace("S", "Suppression at"))
+    # c = c.properties(title=df['cond'].iloc[0].replace("S", "Suppression at"))
     c = c.configure_title(orient='top', anchor='middle', fontSize=14)
     c = prepare_for_print(c)
     c = update_display_name_species(c, target_str=const.S_TYPE)
