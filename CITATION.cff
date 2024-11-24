@@ -1,0 +1,24 @@
+# This CITATION.cff file was generated with cffinit.
+# Visit https://bit.ly/cffinit to generate yours today!
+
+cff-version: 1.2.0
+title: Kinetic Simulation Framework for Crosslinks
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - given-names: Kai-Michael
+    family-names: Kammer
+    email: kai-michael.kammer@uni-konstanz.de
+    affiliation: Universität Konstanz
+    orcid: 'https://orcid.org/0009-0006-9122-0480'
+repository-code: 'https://github.com/stengel-laboratory/xlink-kme-sbml'
+abstract: Kinetic crosslink simulations using SBML and Tellurium
+keywords:
+  - cross-linking
+  - chemical kinetics
+  - mass spectrometry
+license: GPL-3.0
+commit: 4c8a9a60c80b020468566fe2cbf770b686917b9a
+date-released: '2024-07-12'
